@@ -182,19 +182,21 @@ export const roomTemplates: RoomTemplate[] = [
   {
     id: 'village_square',
     name: 'Village Square',
-    description: 'The central square of the Lizard village is a place of quiet resistance. A dry fountain - once a symbol of prosperity - stands silent in the center. Lizards gather here to share news, trade goods, and remember better times. Wilson\'s proclamations are posted on a board, but someone has drawn a rude picture on the latest one.',
+    description: 'The central square of the Lizard village is a place of quiet resistance. A dry fountain - once a symbol of prosperity - stands silent in the center. Lizards gather here to share news, trade goods, and remember better times. Wilson\'s proclamations are posted on a board, but someone has drawn a rude picture on the latest one. A general store sits to the west, and the market district lies to the east.',
     area: 'village',
     exits: [
       { direction: 'north', targetRoom: 'crossroads' },
       { direction: 'east', targetRoom: 'market_district' },
       { direction: 'south', targetRoom: 'assembly_hall' },
-      { direction: 'west', targetRoom: 'lizard_homes_west' },
+      { direction: 'west', targetRoom: 'general_store' },
     ],
     flags: { safe: true },
     defaultItems: [],
     defaultNpcs: [
       { npcTemplateId: 112, respawnMinutes: 0 }, // Village Elder Moondog
       { npcTemplateId: 122, respawnMinutes: 0 }, // Town Crier Barnaby
+      { npcTemplateId: 128, respawnMinutes: 0 }, // Playing Children
+      { npcTemplateId: 129, respawnMinutes: 0 }, // Off-duty Worker
     ],
     features: [
       {
@@ -218,18 +220,98 @@ export const roomTemplates: RoomTemplate[] = [
   {
     id: 'market_district',
     name: 'Market District',
-    description: 'Despite Wilson\'s taxes, commerce survives here. Stalls sell everything from vegetables to handmade crafts. The Lizards have learned to hide their best goods from the tax collectors. A blacksmith\'s hammer rings steadily from a forge, and the smell of fresh bread drifts from a small bakery.',
+    description: 'Despite Wilson\'s taxes, commerce survives here. Stalls sell everything from vegetables to handmade crafts. The Lizards have learned to hide their best goods from the tax collectors. A blacksmith\'s hammer rings steadily from a forge to the east, and the smell of fresh bread drifts from a bakery to the south. The tailor\'s colorful fabrics catch your eye to the west.',
     area: 'village',
     exits: [
-      { direction: 'west', targetRoom: 'village_square' },
+      { direction: 'west', targetRoom: 'tailor_shop' },
       { direction: 'north', targetRoom: 'the_inn' },
       { direction: 'east', targetRoom: 'blacksmith_forge' },
+      { direction: 'south', targetRoom: 'bakery' },
     ],
     flags: { safe: true },
     defaultItems: [],
     defaultNpcs: [
+      { npcTemplateId: 7, respawnMinutes: 0 },   // Mr. Palmer (accountant)
+      { npcTemplateId: 123, respawnMinutes: 0 }, // Vegetable Vendor
+      { npcTemplateId: 124, respawnMinutes: 0 }, // Old Gossip
+    ],
+    features: [
+      {
+        keywords: ['stalls', 'stall', 'market'],
+        description: 'Wooden stalls line the square, their awnings faded by sun and rain. Vendors hawk vegetables, cheese, cloth, and trinkets. Prices are high - Wilson\'s taxes make sure of that.',
+      },
+    ],
+  },
+  {
+    id: 'bakery',
+    name: 'Possum\'s Bakery',
+    description: 'The warmth hits you first, then the smell - fresh bread, sweet rolls, and something with cinnamon. Possum the baker works behind a flour-dusted counter, pulling loaves from a great stone oven. Shelves display the day\'s offerings, and a few small tables invite customers to linger.',
+    area: 'village',
+    exits: [
+      { direction: 'north', targetRoom: 'market_district' },
+    ],
+    flags: { safe: true },
+    defaultItems: [
+      { itemTemplateId: 50, quantity: 10, respawnMinutes: 15 }, // Bread
+    ],
+    defaultNpcs: [
       { npcTemplateId: 113, respawnMinutes: 0 }, // Baker Possum
-      { npcTemplateId: 7, respawnMinutes: 0 }, // Mr. Palmer
+      { npcTemplateId: 125, respawnMinutes: 0 }, // Baker's Apprentice
+    ],
+    features: [
+      {
+        keywords: ['oven', 'stone oven'],
+        description: 'The great stone oven dominates the back wall, its fire never fully dying. Possum claims it\'s been burning for three generations.',
+      },
+      {
+        keywords: ['bread', 'loaves', 'rolls'],
+        description: 'Golden loaves, braided rolls, and sweet pastries fill the shelves. Your mouth waters just looking at them.',
+      },
+    ],
+  },
+  {
+    id: 'tailor_shop',
+    name: 'Needle & Thread',
+    description: 'Bolts of fabric in every color lean against the walls. A Lizard woman works at a sewing table, her needle flashing in and out of cloth with practiced speed. Finished garments hang from hooks - practical work clothes, a few finer pieces, and in the back, what might be disguises for those who need to travel unnoticed.',
+    area: 'village',
+    exits: [
+      { direction: 'east', targetRoom: 'market_district' },
+    ],
+    flags: { safe: true },
+    defaultItems: [],
+    defaultNpcs: [
+      { npcTemplateId: 126, respawnMinutes: 0 }, // Tailor Lydia
+    ],
+    features: [
+      {
+        keywords: ['fabric', 'fabrics', 'cloth', 'bolts'],
+        description: 'Fabrics from all over Gamehenge - rough homespun, fine linen, even some smuggled silk. The colors range from practical browns to rebellious bright yellows.',
+      },
+      {
+        keywords: ['disguises', 'back', 'unnoticed'],
+        description: 'You notice some plain grey cloaks and nondescript traveling clothes. Perfect for someone who doesn\'t want to be recognized.',
+      },
+    ],
+  },
+  {
+    id: 'general_store',
+    name: 'Gamehenge General Goods',
+    description: 'If you need it and it\'s legal (or only slightly illegal), you can probably find it here. Shelves overflow with tools, rope, lanterns, bags, and a thousand other necessities. The proprietor, a shrewd Lizard named Stumpy, knows the value of everything and the price of nothing - meaning he\'ll haggle all day if you let him.',
+    area: 'village',
+    exits: [
+      { direction: 'east', targetRoom: 'village_square' },
+      { direction: 'west', targetRoom: 'lizard_homes_west' },
+    ],
+    flags: { safe: true },
+    defaultItems: [],
+    defaultNpcs: [
+      { npcTemplateId: 127, respawnMinutes: 0 }, // Stumpy the shopkeeper
+    ],
+    features: [
+      {
+        keywords: ['shelves', 'goods', 'tools'],
+        description: 'Everything you might need for life in Gamehenge - rope, lanterns, flint, bags, blankets, cooking pots, and items you can\'t quite identify.',
+      },
     ],
   },
   {
@@ -280,7 +362,7 @@ export const roomTemplates: RoomTemplate[] = [
     description: 'Simple but sturdy homes line this quiet street. Flower boxes brighten windows despite the hard times. Children play in the dirt road while elders sit on porches, watching the world pass. This is where the working families live - farmers, craftsmen, and laborers.',
     area: 'village',
     exits: [
-      { direction: 'east', targetRoom: 'village_square' },
+      { direction: 'east', targetRoom: 'general_store' },
       { direction: 'south', targetRoom: 'farmlands' },
     ],
     flags: { safe: true },
@@ -288,6 +370,7 @@ export const roomTemplates: RoomTemplate[] = [
     defaultNpcs: [
       { npcTemplateId: 118, respawnMinutes: 0 }, // Martha (Rutherford's wife)
       { npcTemplateId: 119, respawnMinutes: 0 }, // Young Jimmy
+      { npcTemplateId: 130, respawnMinutes: 0 }, // Old Timer on porch
     ],
   },
 
