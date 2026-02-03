@@ -12,6 +12,7 @@ import { questManager } from './managers/questManager';
 import { gameLoop } from './gameLoop';
 import { processCommand } from './commands';
 import bcrypt from 'bcrypt';
+import { generateTownCrierAnnouncement } from './services/geminiService';
 
 const TELNET_PORT = parseInt(process.env.TELNET_PORT || '4000', 10);
 
@@ -101,6 +102,19 @@ function broadcast(text: string, exceptPlayerId?: number): void {
       sendLine(socket, text);
       sendPrompt(socket);
     }
+  }
+}
+
+// Town Crier announces player arrivals with AI-generated witty remarks
+async function announceTownCrier(playerId: number, playerName: string): Promise<void> {
+  try {
+    const announcement = await generateTownCrierAnnouncement(playerId, playerName);
+    const crierMessage = `\r\n${colors.brightYellow}[Town Crier] ${announcement}${colors.reset}`;
+    broadcast(crierMessage);
+    console.log(`[TownCrier] ${announcement}`);
+  } catch (error) {
+    console.error('[TownCrier] Failed to generate announcement:', error);
+    // Silent fail - don't disrupt the player's experience
   }
 }
 
@@ -577,7 +591,7 @@ function enterGame(socket: net.Socket, conn: TelnetConnection): void {
   const roomDesc = worldManager.getRoomDescription(player.current_room, conn.playerId!);
   sendLine(socket, roomDesc);
 
-  // Notify others
+  // Notify others in room
   const playersInRoom = worldManager.getPlayersInRoom(player.current_room);
   for (const otherId of playersInRoom) {
     if (otherId !== conn.playerId) {
@@ -588,6 +602,9 @@ function enterGame(socket: net.Socket, conn: TelnetConnection): void {
   sendPrompt(socket);
 
   console.log(`[FROBARK] ${conn.playerName} entered Gamehenge from ${socket.remoteAddress}`);
+
+  // Town Crier announces the arrival to ALL players (async, non-blocking)
+  announceTownCrier(conn.playerId!, conn.playerName!);
 }
 
 // Handle game commands

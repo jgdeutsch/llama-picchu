@@ -488,3 +488,94 @@ Keep it urgent and in character. No quotation marks.`;
     return `${npcName} shouts about ${situation}!`;
   }
 }
+
+// Town Crier Announcement - generates a witty, Rosencrantz & Guildenstern style announcement
+// when a player logs in. Uses full implementor-level knowledge of the player.
+export async function generateTownCrierAnnouncement(
+  playerId: number,
+  playerName: string
+): Promise<string> {
+  const db = getDatabase();
+
+  // Gather all knowledge about this player
+  const player = db.prepare(`
+    SELECT p.*,
+           (SELECT COUNT(*) FROM social_capital WHERE player_id = p.id AND capital > 20) as friends_count,
+           (SELECT COUNT(*) FROM social_capital WHERE player_id = p.id AND capital < -20) as enemies_count,
+           (SELECT COUNT(*) FROM player_books WHERE author_id = p.id) as books_written,
+           (SELECT COUNT(*) FROM player_employment WHERE player_id = p.id) as jobs_held,
+           (SELECT SUM(tasks_completed) FROM player_employment WHERE player_id = p.id) as total_tasks
+    FROM players p WHERE p.id = ?
+  `).get(playerId) as any;
+
+  // Get recent gossip about this player
+  const gossip = db.prepare(`
+    SELECT content, gossip_type FROM npc_gossip
+    WHERE about_player_id = ?
+    ORDER BY created_at DESC LIMIT 3
+  `).all(playerId) as { content: string; gossip_type: string }[];
+
+  // Get notable relationships
+  const relationships = db.prepare(`
+    SELECT sc.capital, sc.trust_level, sc.times_helped, sc.times_wronged
+    FROM social_capital sc
+    WHERE sc.player_id = ?
+    ORDER BY ABS(sc.capital) DESC
+    LIMIT 5
+  `).all(playerId) as any[];
+
+  // Build context for the crier
+  let playerContext = `Player: ${playerName}\n`;
+  playerContext += `Level: ${player?.level || 1}, Gold: ${player?.gold || 0}\n`;
+  playerContext += `Friends in Gamehenge: ${player?.friends_count || 0}, Enemies: ${player?.enemies_count || 0}\n`;
+  playerContext += `Books written: ${player?.books_written || 0}\n`;
+  playerContext += `Jobs held: ${player?.jobs_held || 0}, Tasks completed: ${player?.total_tasks || 0}\n`;
+
+  if (gossip.length > 0) {
+    playerContext += `Recent gossip: ${gossip.map(g => g.content).join('; ')}\n`;
+  }
+
+  if (relationships.length > 0) {
+    const helpful = relationships.filter(r => r.times_helped > 0).length;
+    const wrongful = relationships.filter(r => r.times_wronged > 0).length;
+    playerContext += `Known for: ${helpful > wrongful ? 'helping others' : wrongful > 0 ? 'causing trouble' : 'being unremarkable'}\n`;
+  }
+
+  // Check if first login ever
+  const isFirstLogin = !player || (player.gold === 0 && player.level === 1);
+
+  const prompt = `You are the Town Crier of Gamehenge, a character in the style of Rosencrantz and Guildenstern from Tom Stoppard's play - philosophical, absurdist, witty, prone to existential observations and clever wordplay.
+
+A player has just logged in. Announce their arrival in ONE short sentence (max 15 words). Be witty and theatrical. Reference something specific about them if possible.
+
+${isFirstLogin ? 'This is a NEW ARRIVAL - a stranger appearing at the border for the first time!' : 'This is a RETURNING player.'}
+
+What you know about them:
+${playerContext}
+
+Your announcement should be:
+- Short (one sentence, under 15 words)
+- Theatrical (you're announcing to the whole realm)
+- Witty in a Stoppard-esque way (wordplay, irony, philosophical undertones)
+- In character as a medieval town crier
+
+Do NOT use "Hear ye" or "Oyez" - be more creative. No quotation marks in your response.`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const announcement = result.response.text().trim();
+    // Remove any quotation marks that might have slipped in
+    return announcement.replace(/["""]/g, '');
+  } catch (error) {
+    console.error('[TownCrier] Gemini error:', error);
+    // Fallback announcements in the spirit of the thing
+    const fallbacks = [
+      `Another soul stumbles into Gamehenge, blinking at the improbability of it all.`,
+      `${playerName} arrives, as if the universe had misplaced them here on purpose.`,
+      `The border admits ${playerName}, though the border has its doubts.`,
+      `${playerName} enters - whether by choice or cosmic accident remains unclear.`,
+      `A figure appears! It's ${playerName}, arriving precisely when they meant to. Probably.`,
+    ];
+    return fallbacks[Math.floor(Math.random() * fallbacks.length)];
+  }
+}
