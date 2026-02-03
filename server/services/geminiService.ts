@@ -497,6 +497,16 @@ export async function generateTownCrierAnnouncement(
 ): Promise<string> {
   const db = getDatabase();
 
+  // Class names for reference
+  const classNames: Record<number, string> = {
+    1: 'Warrior',
+    2: 'Mage',
+    3: 'Rogue',
+    4: 'Cleric',
+    5: 'Ranger',
+    6: 'Bard'
+  };
+
   // Gather all knowledge about this player
   const player = db.prepare(`
     SELECT p.*,
@@ -515,51 +525,83 @@ export async function generateTownCrierAnnouncement(
     ORDER BY created_at DESC LIMIT 3
   `).all(playerId) as { content: string; gossip_type: string }[];
 
-  // Get notable relationships
+  // Get notable relationships with NPC names
   const relationships = db.prepare(`
-    SELECT sc.capital, sc.trust_level, sc.times_helped, sc.times_wronged
+    SELECT sc.capital, sc.trust_level, sc.times_helped, sc.times_wronged, sc.npc_id
     FROM social_capital sc
     WHERE sc.player_id = ?
     ORDER BY ABS(sc.capital) DESC
     LIMIT 5
   `).all(playerId) as any[];
 
-  // Build context for the crier
-  let playerContext = `Player: ${playerName}\n`;
-  playerContext += `Level: ${player?.level || 1}, Gold: ${player?.gold || 0}\n`;
-  playerContext += `Friends in Gamehenge: ${player?.friends_count || 0}, Enemies: ${player?.enemies_count || 0}\n`;
-  playerContext += `Books written: ${player?.books_written || 0}\n`;
-  playerContext += `Jobs held: ${player?.jobs_held || 0}, Tasks completed: ${player?.total_tasks || 0}\n`;
+  // Get best friend and worst enemy NPC names
+  const bestFriend = relationships.find(r => r.capital > 30);
+  const worstEnemy = relationships.find(r => r.capital < -30);
+
+  // Build context for the crier - be SPECIFIC
+  const className = classNames[player?.class_id] || 'wanderer';
+  const hasHistory = player && (player.level > 1 || player.gold > 100 || relationships.length > 0 || gossip.length > 0);
+
+  let specificDetails: string[] = [];
+
+  // Add specific facts
+  if (player?.level > 5) specificDetails.push(`Level ${player.level} veteran`);
+  if (player?.gold > 1000) specificDetails.push(`notably wealthy (${player.gold} gold)`);
+  if (player?.gold === 0) specificDetails.push(`completely broke`);
+  if (player?.books_written > 0) specificDetails.push(`author of ${player.books_written} book(s)`);
+  if (player?.total_tasks > 20) specificDetails.push(`completed ${player.total_tasks} work tasks`);
+  if (player?.friends_count > 3) specificDetails.push(`well-liked (${player.friends_count} friends)`);
+  if (player?.enemies_count > 0) specificDetails.push(`has made ${player.enemies_count} enemy(ies)`);
+  if (bestFriend) specificDetails.push(`close friend of NPC #${bestFriend.npc_id}`);
+  if (worstEnemy) specificDetails.push(`despised by NPC #${worstEnemy.npc_id}`);
 
   if (gossip.length > 0) {
-    playerContext += `Recent gossip: ${gossip.map(g => g.content).join('; ')}\n`;
+    specificDetails.push(`Recent gossip: "${gossip[0].content}"`);
   }
 
-  if (relationships.length > 0) {
-    const helpful = relationships.filter(r => r.times_helped > 0).length;
-    const wrongful = relationships.filter(r => r.times_wronged > 0).length;
-    playerContext += `Known for: ${helpful > wrongful ? 'helping others' : wrongful > 0 ? 'causing trouble' : 'being unremarkable'}\n`;
+  // Analyze the name for potential wordplay
+  const nameLength = playerName.length;
+  const startsWithVowel = /^[aeiou]/i.test(playerName);
+  const hasDoubleLetters = /(.)\1/.test(playerName);
+
+  let playerContext = `Player name: "${playerName}" (${nameLength} letters${startsWithVowel ? ', starts with vowel' : ''}${hasDoubleLetters ? ', has double letters' : ''})\n`;
+  playerContext += `Class: ${className}\n`;
+  playerContext += `Level: ${player?.level || 1}\n`;
+  playerContext += `Gold: ${player?.gold || 0}\n`;
+
+  if (specificDetails.length > 0) {
+    playerContext += `\nSPECIFIC FACTS TO REFERENCE:\n- ${specificDetails.join('\n- ')}\n`;
+  } else {
+    playerContext += `\nNO HISTORY YET - this player is brand new. Comment on their NAME or CLASS instead.\n`;
+    playerContext += `Name observations: "${playerName}" - consider puns, sounds, meanings, or just the strangeness of names in general.\n`;
   }
 
   // Check if first login ever
-  const isFirstLogin = !player || (player.gold === 0 && player.level === 1);
+  const isFirstLogin = !hasHistory;
 
-  const prompt = `You are the Town Crier of Gamehenge, a character in the style of Rosencrantz and Guildenstern from Tom Stoppard's play - philosophical, absurdist, witty, prone to existential observations and clever wordplay.
+  const prompt = `You are the Town Crier of Gamehenge, in the style of Rosencrantz and Guildenstern - philosophical, absurdist, witty.
 
-A player has just logged in. Announce their arrival in ONE short sentence (max 15 words). Be witty and theatrical. Reference something specific about them if possible.
+A player has just logged in. Announce their arrival in ONE short sentence (max 15 words).
 
-${isFirstLogin ? 'This is a NEW ARRIVAL - a stranger appearing at the border for the first time!' : 'This is a RETURNING player.'}
+${isFirstLogin ? 'This is a BRAND NEW player with no history. Make a witty observation about their NAME or their CLASS.' : 'This player has HISTORY. Reference something SPECIFIC from the facts below.'}
 
-What you know about them:
+PLAYER INFO:
 ${playerContext}
 
-Your announcement should be:
-- Short (one sentence, under 15 words)
-- Theatrical (you're announcing to the whole realm)
-- Witty in a Stoppard-esque way (wordplay, irony, philosophical undertones)
-- In character as a medieval town crier
+REQUIREMENTS:
+- ONE sentence only, under 15 words
+- ${isFirstLogin ? 'Comment on their NAME (wordplay, sounds, meaning) or CLASS' : 'Reference a SPECIFIC fact from above'}
+- Witty, theatrical, slightly philosophical
+- NO "Hear ye" or "Oyez"
+- No quotation marks
 
-Do NOT use "Hear ye" or "Oyez" - be more creative. No quotation marks in your response.`;
+Example styles:
+- "The ${className} ${playerName} arrives, as if ${className}s ever truly arrive anywhere."
+- "${playerName}—a name that sounds like a sneeze, attached to a ${className}."
+- "Ah, ${playerName} returns, still owing Rutherford for that harvest incident."
+- "The author ${playerName} graces us—pen mightier than sword, wallet lighter than air."
+
+Your announcement:`;
 
   try {
     const result = await model.generateContent(prompt);
