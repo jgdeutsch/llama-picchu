@@ -6,7 +6,7 @@ import { getDatabase, playerQueries } from '../database';
 import { worldManager } from './worldManager';
 import { connectionManager } from './connectionManager';
 import { getNpcById, getNpcPersonalityPrompt } from '../data/npcs';
-import { generateNpcGossip, generateNpcShout, getTimeOfDay, generateNpcRoomEntryComment } from '../services/geminiService';
+import { generateNpcGossip, generateNpcShout, getTimeOfDay, generateNpcRoomEntryComment, generateNpcEmote } from '../services/geminiService';
 
 // Types
 interface NpcState {
@@ -269,35 +269,110 @@ class NPCLifeManager {
           WHERE npc_instance_id = ?
         `).run(now.toISOString(), npcState.npc_instance_id);
 
-        // NPCs in the CURRENT room (not adjacent) may comment on the player's arrival
+        // NPCs in the CURRENT room (not adjacent) may react to the player's arrival
         if (currentRoom === roomId) {
           const npcTemplate = getNpcById(npcState.npc_template_id);
           if (npcTemplate) {
             const personality = getNpcPersonalityPrompt(npcState.npc_template_id);
 
-            // Generate and send NPC comment asynchronously
-            generateNpcRoomEntryComment(
-              npcState.npc_template_id,
-              npcTemplate.name,
+            // Generate NPC reactions asynchronously - either emote, comment, or both
+            this.generateNpcRoomReaction(
+              npcState,
+              npcTemplate,
               personality,
               playerId,
               playerName,
               roomName
-            ).then(comment => {
-              if (comment) {
-                // Send the comment to the player
-                connectionManager.sendToPlayer(playerId, {
-                  type: 'output',
-                  text: `\n${npcTemplate.name}: ${comment}`,
-                  messageType: 'chat',
-                });
-              }
-            }).catch(err => {
-              console.error(`[NPC Comment] Error for ${npcTemplate.name}:`, err);
-            });
+            );
           }
         }
       }
+    }
+  }
+
+  // Generate NPC reaction when player enters - emote, comment, or both
+  private async generateNpcRoomReaction(
+    npcState: any,
+    npcTemplate: any,
+    personality: string,
+    playerId: number,
+    playerName: string,
+    roomName: string
+  ): Promise<void> {
+    try {
+      // Decide what kind of reaction (or combination)
+      const roll = Math.random();
+
+      if (roll < 0.4) {
+        // 40%: Just emote (action without dialogue)
+        const emote = await generateNpcEmote(
+          npcTemplate.name,
+          personality,
+          npcState.current_task,
+          roomName
+        );
+        if (emote) {
+          connectionManager.sendToPlayer(playerId, {
+            type: 'output',
+            text: `\n${emote}`,
+            messageType: 'emote',
+          });
+        }
+      } else if (roll < 0.7) {
+        // 30%: Comment (dialogue)
+        const comment = await generateNpcRoomEntryComment(
+          npcState.npc_template_id,
+          npcTemplate.name,
+          personality,
+          playerId,
+          playerName,
+          roomName
+        );
+        if (comment) {
+          connectionManager.sendToPlayer(playerId, {
+            type: 'output',
+            text: `\n${npcTemplate.name}: ${comment}`,
+            messageType: 'chat',
+          });
+        }
+      } else if (roll < 0.85) {
+        // 15%: Both emote then comment
+        const emote = await generateNpcEmote(
+          npcTemplate.name,
+          personality,
+          npcState.current_task,
+          roomName
+        );
+        const comment = await generateNpcRoomEntryComment(
+          npcState.npc_template_id,
+          npcTemplate.name,
+          personality,
+          playerId,
+          playerName,
+          roomName
+        );
+
+        if (emote) {
+          connectionManager.sendToPlayer(playerId, {
+            type: 'output',
+            text: `\n${emote}`,
+            messageType: 'emote',
+          });
+        }
+        if (comment) {
+          // Small delay before dialogue follows action
+          setTimeout(() => {
+            connectionManager.sendToPlayer(playerId, {
+              type: 'output',
+              text: `${npcTemplate.name}: ${comment}`,
+              messageType: 'chat',
+            });
+          }, 500);
+        }
+      }
+      // 15%: No reaction at all (NPC is absorbed in their work)
+    } catch (err) {
+      console.error(`[NPC Reaction] Error for ${npcTemplate.name}:`, err);
     }
   }
 

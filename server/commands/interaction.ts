@@ -10,6 +10,8 @@ import { itemTemplates } from '../data/items';
 import { npcTemplates, getNpcPersonalityPrompt } from '../data/npcs';
 import {
   generateNpcResponse,
+  generateHelpfulGuidance,
+  generatePersonalizedNpcDescription,
   addNpcMemory,
   getNpcMemoriesOfPlayer,
   getDaysSinceLastMeeting,
@@ -22,7 +24,11 @@ import type { CommandContext } from './index';
 export function processInteractionCommand(ctx: CommandContext, action: string): void {
   switch (action) {
     case 'look':
-      processLookAt(ctx);
+      // processLookAt is async for Gemini-powered helpful guidance
+      processLookAt(ctx).catch(err => {
+        console.error('[Look] Error:', err);
+        sendOutput(ctx.playerId, 'Something went wrong while looking.');
+      });
       break;
     case 'take':
       processTakeItem(ctx);
@@ -54,7 +60,7 @@ function sendOutput(playerId: number, text: string): void {
   });
 }
 
-function processLookAt(ctx: CommandContext): void {
+async function processLookAt(ctx: CommandContext): Promise<void> {
   let target = ctx.args.join(' ').toLowerCase();
 
   // Handle "look at <thing>" - strip leading "at"
@@ -87,7 +93,21 @@ function processLookAt(ctx: CommandContext): void {
   if (npc) {
     const template = npcTemplates.find((t) => t.id === npc.npcTemplateId);
     if (template) {
-      sendOutput(ctx.playerId, `\n${template.longDesc}\n`);
+      // Generate personalized description based on player's history with this NPC
+      try {
+        const personalizedDesc = await generatePersonalizedNpcDescription(
+          npc.npcTemplateId,
+          template.name,
+          template.longDesc,
+          template.shortDesc,
+          ctx.playerId,
+          ctx.playerName
+        );
+        sendOutput(ctx.playerId, `\n${personalizedDesc}\n`);
+      } catch (error) {
+        // Fallback to standard description
+        sendOutput(ctx.playerId, `\n${template.longDesc}\n`);
+      }
       return;
     }
   }
@@ -120,7 +140,39 @@ function processLookAt(ctx: CommandContext): void {
     }
   }
 
-  sendOutput(ctx.playerId, `You don't see "${target}" here.`);
+  // Target not found - use Gemini for helpful guidance instead of cold error
+  try {
+    const npcsHere = worldManager.getNpcsInRoomWithTemplates(ctx.roomId);
+    const npcInfo = npcsHere.map(({ template }) => ({
+      name: template.name,
+      keywords: template.keywords,
+      type: template.type
+    }));
+
+    // Get items in room for context
+    const roomState = worldManager.getRoomState(ctx.roomId);
+    const itemInfo = (roomState?.items || []).map(item => {
+      const template = itemTemplates.find(t => t.id === item.itemTemplateId);
+      return template ? { name: template.name, keywords: template.keywords } : null;
+    }).filter(Boolean) as Array<{ name: string; keywords: string[] }>;
+
+    const roomFeatures = room?.features || [];
+
+    const guidance = await generateHelpfulGuidance(
+      ctx.playerName,
+      'look',
+      target,
+      room?.name || 'this area',
+      npcInfo,
+      itemInfo,
+      roomFeatures
+    );
+
+    sendOutput(ctx.playerId, `\n${guidance}\n`);
+  } catch (error) {
+    // Fallback to simple message if Gemini fails
+    sendOutput(ctx.playerId, `You don't see "${target}" here.`);
+  }
 }
 
 function processTakeItem(ctx: CommandContext): void {
@@ -354,13 +406,37 @@ async function processTalk(ctx: CommandContext): Promise<void> {
   }
 
   if (!npc) {
-    sendOutput(ctx.playerId, `You don't see "${args[0]}" here.`);
+    // Use Gemini-powered helpful guidance
+    try {
+      const npcsHere = worldManager.getNpcsInRoomWithTemplates(ctx.roomId);
+      const npcInfo = npcsHere.map(({ template }) => ({
+        name: template.name,
+        keywords: template.keywords,
+        type: template.type
+      }));
 
-    // Suggest NPCs that ARE in the room
-    const npcsHere = npcManager.getNpcsInRoom(ctx.roomId);
-    if (npcsHere.length > 0) {
-      const suggestions = npcsHere.slice(0, 3).map(n => n.name.split(' ')[0].toLowerCase()).join(', ');
-      sendOutput(ctx.playerId, `Try talking to: ${suggestions}`);
+      const room = worldManager.getRoom(ctx.roomId);
+
+      const guidance = await generateHelpfulGuidance(
+        ctx.playerName,
+        'talk',
+        args[0],
+        room?.name || 'this area',
+        npcInfo,
+        [],
+        []
+      );
+
+      sendOutput(ctx.playerId, `\n${guidance}\n`);
+    } catch (error) {
+      // Fallback to simple suggestions
+      const npcsHere = npcManager.getNpcsInRoom(ctx.roomId);
+      if (npcsHere.length > 0) {
+        const suggestions = npcsHere.slice(0, 3).map(n => n.name.split(' ')[0].toLowerCase()).join(', ');
+        sendOutput(ctx.playerId, `You don't see "${args[0]}" here. Try: ${suggestions}`);
+      } else {
+        sendOutput(ctx.playerId, `You don't see "${args[0]}" here.`);
+      }
     }
     return;
   }

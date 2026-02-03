@@ -1,8 +1,11 @@
-// Communication Commands for Llama Picchu MUD
+// Communication Commands for FROBARK MUD
 import { connectionManager } from '../managers/connectionManager';
 import { worldManager } from '../managers/worldManager';
 import { playerManager } from '../managers/playerManager';
-import { getDatabase, playerQueries } from '../database';
+import { npcManager } from '../managers/npcManager';
+import { getDatabase, playerQueries, roomNpcQueries } from '../database';
+import { generateNpcSpeechReaction, addNpcMemory } from '../services/geminiService';
+import { npcTemplates, getNpcPersonalityPrompt } from '../data/npcs';
 import type { CommandContext } from './index';
 
 export function processCommunicationCommand(ctx: CommandContext, action: string): void {
@@ -49,6 +52,82 @@ function processSay(ctx: CommandContext): void {
         from: ctx.playerName,
         message,
       });
+    }
+  }
+
+  // NPCs in the room may react to what was said
+  triggerNpcSpeechReactions(ctx, message);
+}
+
+// NPCs react to player speech - makes the world feel alive
+async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): Promise<void> {
+  const db = getDatabase();
+
+  // Get NPCs in this room
+  const npcsInRoom = roomNpcQueries.getByRoom(db).all(ctx.roomId) as {
+    id: number;
+    npcTemplateId: number;
+  }[];
+
+  for (const npc of npcsInRoom) {
+    const template = npcTemplates.find(t => t.id === npc.npcTemplateId);
+    if (!template || template.type === 'enemy') continue; // Enemies don't chat
+
+    // Get NPC's relationship with player
+    const relationship = db.prepare(`
+      SELECT trust_level FROM social_capital
+      WHERE player_id = ? AND npc_id = ?
+    `).get(ctx.playerId, npc.npcTemplateId) as { trust_level: string } | undefined;
+
+    const trustLevel = relationship?.trust_level || 'stranger';
+    const personality = getNpcPersonalityPrompt(npc.npcTemplateId);
+
+    // Get NPC's current task
+    const npcState = db.prepare(`
+      SELECT current_task FROM npc_state
+      WHERE npc_template_id = ?
+    `).get(npc.npcTemplateId) as { current_task: string | null } | undefined;
+
+    try {
+      const reaction = await generateNpcSpeechReaction(
+        npc.npcTemplateId,
+        template.name,
+        personality,
+        npcState?.current_task || null,
+        ctx.playerId,
+        ctx.playerName,
+        message,
+        trustLevel
+      );
+
+      if (reaction) {
+        // Send emote if present
+        if (reaction.emote) {
+          sendOutput(ctx.playerId, `\n${template.name} ${reaction.emote}`);
+        }
+
+        // Send response if present
+        if (reaction.response) {
+          // Small delay if there was an emote
+          if (reaction.emote) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+          sendOutput(ctx.playerId, `${template.name} says, "${reaction.response}"`);
+        }
+
+        // Record this interaction in NPC memory
+        addNpcMemory(
+          npc.npcTemplateId,
+          ctx.playerId,
+          'interaction',
+          `${ctx.playerName} said: "${message.substring(0, 80)}"`,
+          3, // Medium importance
+          0  // Neutral valence by default
+        );
+      }
+    } catch (error) {
+      // Silently fail - don't disrupt the game if Gemini is down
+      console.error(`[NPC Speech] Error for ${template.name}:`, error);
     }
   }
 }

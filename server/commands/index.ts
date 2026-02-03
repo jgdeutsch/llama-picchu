@@ -20,6 +20,7 @@ import { processCharacterCommand } from './character';
 import { processSkillCommand } from './skills';
 import { processShopCommand } from './shop';
 import { getNpcById } from '../data/npcs';
+import { getSocial, processSocialCommand, getAllSocialNames } from './socials';
 import type { Direction } from '../../shared/types/room';
 
 // Direction aliases
@@ -383,6 +384,13 @@ export function processCommand(playerId: number, rawInput: string): void {
 // Helper to suggest similar commands
 function processUnknownCommand(ctx: CommandContext): void {
   const { command, args, playerId } = ctx;
+
+  // Check if this is a social/emote command
+  const social = getSocial(command);
+  if (social) {
+    processSocialCommand(ctx, command);
+    return;
+  }
 
   // Common typos and what the player probably meant
   const suggestions: Record<string, { cmd: string; tip: string }> = {

@@ -246,15 +246,34 @@ class WorldManager {
     return null;
   }
 
-  // Find NPC in room by keyword
+  // Find NPC in room by keyword - supports smart matching
   findNpcInRoom(roomId: string, keyword: string): RoomNpcInstance | null {
     const db = getDatabase();
     const npcs = roomNpcQueries.getByRoom(db).all(roomId) as RoomNpcInstance[];
+    const lowerKeyword = keyword.toLowerCase();
 
+    // Generic keywords that should match based on NPC properties
+    const genericKeywords: Record<string, (template: typeof npcTemplates[0]) => boolean> = {
+      'lizard': (t) => t.longDesc?.toLowerCase().includes('lizard') || t.shortDesc?.toLowerCase().includes('lizard') || false,
+      'human': (t) => !t.longDesc?.toLowerCase().includes('lizard') && !t.longDesc?.toLowerCase().includes('weasel'),
+      'man': (t) => t.longDesc?.toLowerCase().includes(' man') || t.longDesc?.toLowerCase().includes(' he ') || t.name.toLowerCase().includes('man'),
+      'woman': (t) => t.longDesc?.toLowerCase().includes(' woman') || t.longDesc?.toLowerCase().includes(' she ') || t.name.toLowerCase().includes('woman'),
+      'guard': (t) => t.type === 'enemy' && (t.keywords.includes('guard') || t.name.toLowerCase().includes('guard')),
+      'shopkeeper': (t) => t.type === 'shopkeeper' || t.type === 'innkeeper',
+      'merchant': (t) => t.type === 'shopkeeper',
+      'bartender': (t) => t.type === 'innkeeper',
+      'innkeeper': (t) => t.type === 'innkeeper',
+      'vendor': (t) => t.type === 'shopkeeper',
+      'npc': (_t) => true, // Match any NPC
+      'person': (_t) => true,
+      'someone': (_t) => true,
+      'anyone': (_t) => true,
+    };
+
+    // First try exact/partial keyword matching (original logic)
     for (const npc of npcs) {
       const template = npcTemplates.find((t) => t.id === npc.npcTemplateId);
       if (template) {
-        const lowerKeyword = keyword.toLowerCase();
         if (
           template.name.toLowerCase().includes(lowerKeyword) ||
           template.keywords.some((k) => k.toLowerCase().includes(lowerKeyword))
@@ -264,7 +283,42 @@ class WorldManager {
       }
     }
 
+    // Try generic keyword matching
+    const genericMatcher = genericKeywords[lowerKeyword];
+    if (genericMatcher) {
+      for (const npc of npcs) {
+        const template = npcTemplates.find((t) => t.id === npc.npcTemplateId);
+        if (template && genericMatcher(template)) {
+          return npc;
+        }
+      }
+    }
+
+    // Try matching NPC type (e.g., "questgiver", "enemy")
+    for (const npc of npcs) {
+      const template = npcTemplates.find((t) => t.id === npc.npcTemplateId);
+      if (template && template.type.toLowerCase() === lowerKeyword) {
+        return npc;
+      }
+    }
+
     return null;
+  }
+
+  // Get all NPCs in room with their templates (for suggestions)
+  getNpcsInRoomWithTemplates(roomId: string): Array<{ npc: RoomNpcInstance; template: typeof npcTemplates[0] }> {
+    const db = getDatabase();
+    const npcs = roomNpcQueries.getByRoom(db).all(roomId) as RoomNpcInstance[];
+    const result: Array<{ npc: RoomNpcInstance; template: typeof npcTemplates[0] }> = [];
+
+    for (const npc of npcs) {
+      const template = npcTemplates.find((t) => t.id === npc.npcTemplateId);
+      if (template) {
+        result.push({ npc, template });
+      }
+    }
+
+    return result;
   }
 
   // Check if room is safe (no combat)

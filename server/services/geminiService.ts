@@ -622,6 +622,341 @@ Your announcement:`;
   }
 }
 
+// Generate personalized NPC description based on player's history with them
+// The description adapts to what the player knows about this NPC from their interactions
+export async function generatePersonalizedNpcDescription(
+  npcId: number,
+  npcName: string,
+  npcBaseDescription: string,
+  npcShortDesc: string,
+  playerId: number,
+  playerName: string
+): Promise<string> {
+  const db = getDatabase();
+
+  // Get relationship data
+  const relationship = db.prepare(`
+    SELECT capital, trust_level, times_helped, times_wronged
+    FROM social_capital
+    WHERE player_id = ? AND npc_id = ?
+  `).get(playerId, npcId) as { capital: number; trust_level: string; times_helped: number; times_wronged: number } | undefined;
+
+  // Get player's memories of this NPC (from NPC memory table - what NPC remembers about player)
+  const npcMemories = db.prepare(`
+    SELECT content, importance, emotional_valence
+    FROM npc_memories
+    WHERE npc_id = ? AND player_id = ?
+    ORDER BY importance DESC, created_at DESC
+    LIMIT 5
+  `).all(npcId, playerId) as { content: string; importance: number; emotional_valence: number }[];
+
+  // Get any gossip the player might have heard about this NPC
+  // (Future: implement player memory table)
+
+  // If player has no history with this NPC, return base description
+  if (!relationship && npcMemories.length === 0) {
+    return npcBaseDescription;
+  }
+
+  // Build context for personalization
+  let historyContext = '';
+
+  if (relationship) {
+    historyContext += `\nYour relationship: ${relationship.trust_level}`;
+    if (relationship.capital > 50) {
+      historyContext += ` (You're on very good terms)`;
+    } else if (relationship.capital > 20) {
+      historyContext += ` (They seem to like you)`;
+    } else if (relationship.capital < -50) {
+      historyContext += ` (They clearly dislike you)`;
+    } else if (relationship.capital < -20) {
+      historyContext += ` (There's tension between you)`;
+    }
+
+    if (relationship.times_helped > 0) {
+      historyContext += `\nYou've helped them ${relationship.times_helped} time(s).`;
+    }
+    if (relationship.times_wronged > 0) {
+      historyContext += `\nYou've wronged them ${relationship.times_wronged} time(s).`;
+    }
+  }
+
+  if (npcMemories.length > 0) {
+    historyContext += `\n\nSignificant memories between you:`;
+    for (const mem of npcMemories.slice(0, 3)) {
+      const sentiment = mem.emotional_valence > 0 ? '(positive)' : mem.emotional_valence < 0 ? '(negative)' : '';
+      historyContext += `\n- ${mem.content} ${sentiment}`;
+    }
+  }
+
+  const prompt = `Rewrite this NPC description to reflect what ${playerName} specifically knows about them.
+
+ORIGINAL DESCRIPTION:
+${npcBaseDescription}
+
+PLAYER'S HISTORY WITH THIS NPC:
+${historyContext}
+
+REQUIREMENTS:
+- Start with the physical appearance (what anyone would see)
+- Add 1-2 sentences about what ${playerName} specifically knows from their interactions
+- Keep it under 100 words total
+- Write in second person ("You know that...", "They seem to...")
+- Don't reveal things the player hasn't learned through interaction
+- If relationship is bad, the description should feel tense
+- If relationship is good, the description should feel warmer
+
+Rewritten description:`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
+  } catch (error) {
+    // Fallback: append a simple relationship note to base description
+    if (relationship) {
+      const note = relationship.capital > 30 ? `\nThey seem pleased to see you.` :
+        relationship.capital < -30 ? `\nThey regard you coldly.` :
+          relationship.capital > 10 ? `\nThey nod in recognition.` :
+            relationship.capital < -10 ? `\nThey seem wary of you.` : '';
+      return npcBaseDescription + note;
+    }
+    return npcBaseDescription;
+  }
+}
+
+// Generate NPC reaction to something a player said in the room
+// NPCs overhear speech and may react with emotes or responses
+export async function generateNpcSpeechReaction(
+  npcId: number,
+  npcName: string,
+  npcPersonality: string,
+  npcCurrentTask: string | null,
+  playerId: number,
+  playerName: string,
+  playerSpeech: string,
+  trustLevel: string
+): Promise<{ emote?: string; response?: string } | null> {
+  // Don't react to every little thing - 50% chance to react
+  if (Math.random() > 0.5) return null;
+
+  const db = getDatabase();
+
+  // Get relationship context
+  const relationship = db.prepare(`
+    SELECT capital, times_helped, times_wronged
+    FROM social_capital
+    WHERE player_id = ? AND npc_id = ?
+  `).get(playerId, npcId) as { capital: number; times_helped: number; times_wronged: number } | undefined;
+
+  let relationshipContext = trustLevel;
+  if (relationship) {
+    if (relationship.capital > 30) relationshipContext += ' (you like them)';
+    else if (relationship.capital < -30) relationshipContext += ' (you dislike them)';
+  }
+
+  const prompt = `You are ${npcName} in a room. Personality: ${npcPersonality}
+${npcCurrentTask ? `You're currently ${npcCurrentTask}.` : 'You\'re idle.'}
+Your relationship with ${playerName}: ${relationshipContext}
+
+${playerName} just said out loud: "${playerSpeech}"
+
+How do you react? You can:
+1. Emote only (action, no words): "*looks up briefly, then returns to work*"
+2. Comment (short remark): "Hmph. Interesting."
+3. Both: "*glances over* That reminds me of something..."
+4. Ignore: respond with NONE
+
+Your response should be IN CHARACTER and reflect your relationship.
+If they said something rude, react accordingly.
+If they said something kind, show appreciation.
+If it's just casual chatter, a brief acknowledgment is fine.
+
+Format your response as:
+EMOTE: [action if any, or NONE]
+SPEECH: [words if any, or NONE]`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+
+    // Parse the response
+    const emoteMatch = text.match(/EMOTE:\s*(.+?)(?:\n|$)/i);
+    const speechMatch = text.match(/SPEECH:\s*(.+?)(?:\n|$)/i);
+
+    const emote = emoteMatch?.[1]?.trim();
+    const speech = speechMatch?.[1]?.trim();
+
+    if ((!emote || emote.toUpperCase() === 'NONE') && (!speech || speech.toUpperCase() === 'NONE')) {
+      return null;
+    }
+
+    const reaction: { emote?: string; response?: string } = {};
+
+    if (emote && emote.toUpperCase() !== 'NONE') {
+      // Clean up emote format
+      reaction.emote = emote.replace(/^\*|\*$/g, '');
+    }
+    if (speech && speech.toUpperCase() !== 'NONE') {
+      reaction.response = speech.replace(/^["']|["']$/g, '');
+    }
+
+    return reaction;
+  } catch (error) {
+    console.error('[NPC Speech Reaction] Error:', error);
+    return null;
+  }
+}
+
+// Generate NPC emote/action when a player enters their room
+// These are actions the NPC does, not dialogue - makes the world feel alive
+export async function generateNpcEmote(
+  npcName: string,
+  npcPersonality: string,
+  npcCurrentTask: string | null,
+  roomName: string
+): Promise<string | null> {
+  // Quick emotes for common situations - don't always need Gemini
+  const quickEmotes: Record<string, string[]> = {
+    farming: [
+      `${npcName} wipes sweat from their brow and continues working.`,
+      `${npcName} bends over the crops, hands deep in the soil.`,
+      `${npcName} hums quietly while tending the plants.`,
+    ],
+    cooking: [
+      `${npcName} stirs a pot, fragrant steam rising.`,
+      `${npcName} tastes something from a wooden spoon and nods.`,
+      `${npcName} chops vegetables with practiced efficiency.`,
+    ],
+    selling: [
+      `${npcName} arranges goods on the counter.`,
+      `${npcName} polishes a display item absently.`,
+      `${npcName} counts coins and makes a note.`,
+    ],
+    serving: [
+      `${npcName} wipes down a table.`,
+      `${npcName} carries drinks to another patron.`,
+      `${npcName} glances around the room, attentive.`,
+    ],
+    patrolling: [
+      `${npcName} shifts their grip on their weapon.`,
+      `${npcName} scans the area with watchful eyes.`,
+      `${npcName} adjusts their armor and continues patrol.`,
+    ],
+    smithing: [
+      `${npcName} hammers at the forge, sparks flying.`,
+      `${npcName} examines a piece of metalwork critically.`,
+      `${npcName} pumps the bellows, making the fire roar.`,
+    ],
+    fishing: [
+      `${npcName} casts their line with a practiced motion.`,
+      `${npcName} watches the water, perfectly still.`,
+      `${npcName} rebaits their hook patiently.`,
+    ],
+  };
+
+  // 60% chance to use a quick emote if available
+  if (npcCurrentTask && quickEmotes[npcCurrentTask] && Math.random() < 0.6) {
+    const emotes = quickEmotes[npcCurrentTask];
+    return emotes[Math.floor(Math.random() * emotes.length)];
+  }
+
+  // Otherwise, generate with Gemini for more variety
+  const prompt = `You are ${npcName} in ${roomName}. Personality: ${npcPersonality}
+${npcCurrentTask ? `Currently doing: ${npcCurrentTask}` : 'Currently idle'}
+
+Generate ONE short emote (action description) for this NPC. NOT dialogue - just an action.
+Format: "${npcName} [action]." - keep under 15 words.
+
+Examples:
+- ${npcName} stretches and yawns, looking around lazily.
+- ${npcName} mutters something under their breath.
+- ${npcName} taps their foot impatiently.
+- ${npcName} examines their fingernails with exaggerated interest.
+
+Or respond NONE if the NPC would do nothing notable.
+
+Your emote:`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const emote = result.response.text().trim();
+
+    if (emote.toUpperCase() === 'NONE' || emote.length < 3) return null;
+    return emote.replace(/^["']|["']$/g, '');
+  } catch (error) {
+    // Fallback to generic emote
+    const genericEmotes = [
+      `${npcName} glances up briefly.`,
+      `${npcName} shifts their weight.`,
+      `${npcName} continues about their business.`,
+    ];
+    return genericEmotes[Math.floor(Math.random() * genericEmotes.length)];
+  }
+}
+
+// Generate helpful guidance when player's command fails
+// This makes the game feel intelligent and welcoming rather than giving cold error messages
+export async function generateHelpfulGuidance(
+  playerName: string,
+  failedCommand: string,
+  target: string,
+  roomName: string,
+  npcsInRoom: Array<{ name: string; keywords: string[]; type: string }>,
+  itemsInRoom: Array<{ name: string; keywords: string[] }>,
+  roomFeatures: Array<{ keywords: string[]; description: string }>
+): Promise<string> {
+  // Build context about what IS in the room
+  let roomContents = '';
+
+  if (npcsInRoom.length > 0) {
+    roomContents += `NPCs here: ${npcsInRoom.map(n => `${n.name} (keywords: ${n.keywords.join(', ')})`).join('; ')}\n`;
+  }
+  if (itemsInRoom.length > 0) {
+    roomContents += `Items here: ${itemsInRoom.map(i => `${i.name} (keywords: ${i.keywords.join(', ')})`).join('; ')}\n`;
+  }
+  if (roomFeatures.length > 0) {
+    roomContents += `Things to examine: ${roomFeatures.map(f => f.keywords.join('/')).join(', ')}\n`;
+  }
+
+  if (!roomContents) {
+    roomContents = 'The room appears empty.';
+  }
+
+  const prompt = `You are a helpful guide spirit in a MUD game. A player just tried something that didn't work.
+
+PLAYER: ${playerName}
+ROOM: ${roomName}
+WHAT THEY TRIED: ${failedCommand} "${target}"
+WHAT'S ACTUALLY HERE:
+${roomContents}
+
+Generate a SHORT, helpful hint (1-2 sentences max) that:
+- Gently explains why "${target}" didn't work
+- Suggests what they COULD do instead
+- Is friendly and encouraging, not condescending
+- Stays immersive (you're a mystical guide, not a game manual)
+- If their target was close to something real, suggest the right keyword
+
+Examples:
+- "The spirits sense no '${target}' here... but the innkeeper behind the bar might have what you seek. Try 'talk antelope'."
+- "Hmm, perhaps you meant the bartender? Try 'look bartender' or 'talk innkeeper'."
+- "No lizard by that name here, though Farmer Rutherford is tending his crops nearby."
+
+Your helpful hint (NO quotation marks around the whole thing):`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim().replace(/^["']|["']$/g, '');
+  } catch (error) {
+    // Fallback - still try to be helpful
+    if (npcsInRoom.length > 0) {
+      const suggestions = npcsInRoom.slice(0, 3).map(n => n.keywords[0] || n.name.split(' ')[0].toLowerCase());
+      return `Hmm, no "${target}" here. Try: ${suggestions.join(', ')}`;
+    }
+    return `You don't see "${target}" here.`;
+  }
+}
+
 // Generate NPC comment when a player enters their room
 // NPCs notice arrivals and comment based on their personality and knowledge of the player
 export async function generateNpcRoomEntryComment(
