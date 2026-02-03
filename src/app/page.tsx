@@ -247,9 +247,14 @@ export default function Game() {
   }, [addOutput]);
 
   // Focus input
-  const focusInput = () => {
+  const focusInput = useCallback(() => {
     inputRef.current?.focus();
-  };
+  }, []);
+
+  // Auto-focus input on mount and after interactions
+  useEffect(() => {
+    focusInput();
+  }, [focusInput, isBooting, waitingForSpace, isLoading]);
 
   // Global SPACE handler
   useEffect(() => {
