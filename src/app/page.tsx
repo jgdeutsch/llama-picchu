@@ -313,10 +313,14 @@ export default function Game() {
     focusInput();
   }, [focusInput, isBooting, waitingForSpace, isLoading]);
 
-  // Global SPACE handler
+  // Global key handler for "press any key"
   useEffect(() => {
     const handleGlobalKey = (e: KeyboardEvent) => {
-      if (e.key === ' ' && waitingForSpace) {
+      if (waitingForSpace) {
+        // Ignore modifier keys alone
+        if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab', 'Escape'].includes(e.key)) {
+          return;
+        }
         e.preventDefault();
         if (isBooting) {
           startGame();
@@ -332,7 +336,11 @@ export default function Game() {
 
   // Handle keyboard in input
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (waitingForSpace && e.key === ' ') {
+    if (waitingForSpace) {
+      // Ignore modifier keys alone
+      if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab', 'Escape'].includes(e.key)) {
+        return;
+      }
       e.preventDefault();
       if (isBooting) {
         startGame();
@@ -525,7 +533,7 @@ export default function Game() {
         {waitingForSpace && (
           <div className="absolute bottom-20 left-0 right-0 z-30">
             <div className="bg-amber-600 text-black py-2 text-center font-bold text-sm tracking-widest animate-pulse">
-              ════════════════  PRESS SPACE TO CONTINUE  ════════════════
+              ════════════════  PRESS ANY KEY TO CONTINUE  ════════════════
             </div>
           </div>
         )}
