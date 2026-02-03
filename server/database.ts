@@ -648,16 +648,18 @@ export function initializeDatabase(): void {
 }
 
 // Create implementor accounts (run once at setup)
-export function createImplementorAccounts(): { opus: string; sprig: string } {
+export async function createImplementorAccounts(): Promise<{ opus: string; sprig: string }> {
   const db = getDatabase();
   const crypto = require('crypto');
+  const bcrypt = require('bcrypt');
 
   // Generate secure passwords
   const opusPassword = crypto.randomBytes(12).toString('base64').slice(0, 16);
   const sprigPassword = crypto.randomBytes(12).toString('base64').slice(0, 16);
 
-  // Simple hash for now (in production, use bcrypt)
-  const hashPassword = (pwd: string) => crypto.createHash('sha256').update(pwd).digest('hex');
+  // Use bcrypt to match the login validation
+  const opusHash = await bcrypt.hash(opusPassword, 10);
+  const sprigHash = await bcrypt.hash(sprigPassword, 10);
 
   // Check if accounts already exist
   const existingOpus = db.prepare(`SELECT id FROM accounts WHERE username = 'Opus'`).get() as { id: number } | undefined;
@@ -665,14 +667,14 @@ export function createImplementorAccounts(): { opus: string; sprig: string } {
 
   if (existingOpus) {
     // Update existing Opus password
-    db.prepare(`UPDATE accounts SET password_hash = ? WHERE username = 'Opus'`).run(hashPassword(opusPassword));
+    db.prepare(`UPDATE accounts SET password_hash = ? WHERE username = 'Opus'`).run(opusHash);
     console.log('Reset password for implementor: Opus');
   } else {
     // Create Opus account and player
     const opusResult = db.prepare(`
       INSERT INTO accounts (username, password_hash, email, is_admin)
       VALUES ('Opus', ?, 'opus@frobark.com', 1)
-    `).run(hashPassword(opusPassword));
+    `).run(opusHash);
 
     db.prepare(`
       INSERT INTO players (
@@ -688,14 +690,14 @@ export function createImplementorAccounts(): { opus: string; sprig: string } {
 
   if (existingSprig) {
     // Update existing Sprig password
-    db.prepare(`UPDATE accounts SET password_hash = ? WHERE username = 'Sprig'`).run(hashPassword(sprigPassword));
+    db.prepare(`UPDATE accounts SET password_hash = ? WHERE username = 'Sprig'`).run(sprigHash);
     console.log('Reset password for implementor: Sprig');
   } else {
     // Create Sprig account and player
     const sprigResult = db.prepare(`
       INSERT INTO accounts (username, password_hash, email, is_admin)
       VALUES ('Sprig', ?, 'sprig@frobark.com', 1)
-    `).run(hashPassword(sprigPassword));
+    `).run(sprigHash);
 
     db.prepare(`
       INSERT INTO players (
