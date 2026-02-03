@@ -55,7 +55,12 @@ function sendOutput(playerId: number, text: string): void {
 }
 
 function processLookAt(ctx: CommandContext): void {
-  const target = ctx.args.join(' ').toLowerCase();
+  let target = ctx.args.join(' ').toLowerCase();
+
+  // Handle "look at <thing>" - strip leading "at"
+  if (target.startsWith('at ')) {
+    target = target.slice(3);
+  }
 
   // Check items in room
   const roomItem = worldManager.findItemInRoom(ctx.roomId, target);
@@ -101,6 +106,17 @@ function processLookAt(ctx: CommandContext): void {
       const classDef = playerManager.getClassDefinition(p.class_id);
       sendOutput(ctx.playerId, `\nYou see ${p.name}, a level ${p.level} ${classDef?.name || 'llama'}.\n`);
       return;
+    }
+  }
+
+  // Check room features (things mentioned in description that can be examined)
+  const room = worldManager.getRoom(ctx.roomId);
+  if (room?.features) {
+    for (const feature of room.features) {
+      if (feature.keywords.some(kw => target.includes(kw) || kw.includes(target))) {
+        sendOutput(ctx.playerId, `\n${feature.description}\n`);
+        return;
+      }
     }
   }
 

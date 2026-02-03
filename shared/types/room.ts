@@ -39,6 +39,11 @@ export interface RoomFlags {
   noRecall: boolean;    // Cannot recall from here
 }
 
+export interface RoomFeature {
+  keywords: string[];  // Words that can be used to look at this feature
+  description: string; // What the player sees when looking at it
+}
+
 export interface RoomTemplate {
   id: string;
   name: string;
@@ -48,6 +53,7 @@ export interface RoomTemplate {
   flags: Partial<RoomFlags>;
   defaultItems: { itemTemplateId: number; quantity: number; respawnMinutes: number }[];
   defaultNpcs: { npcTemplateId: number; respawnMinutes: number }[];
+  features?: RoomFeature[]; // Optional lookable features mentioned in the description
 }
 
 export interface RoomState {

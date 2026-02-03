@@ -33,6 +33,24 @@ export const roomTemplates: RoomTemplate[] = [
     flags: {},
     defaultItems: [],
     defaultNpcs: [{ npcTemplateId: 1, respawnMinutes: 0 }], // Wilson (when holding court)
+    features: [
+      {
+        keywords: ['throne', 'black stone', 'stone throne'],
+        description: 'The throne is carved from a single massive block of obsidian, its surface so dark it seems to drink the light. Twisted serpents form the armrests, and the high back is carved with scenes of subjugation. It looks profoundly uncomfortable, which seems fitting.',
+      },
+      {
+        keywords: ['tapestries', 'tapestry', 'walls'],
+        description: 'The tapestries are woven with disturbing skill, showing Wilson\'s forces crushing Lizard uprisings, burning books, and dragging scholars to the dungeons. One panel shows the theft of the Helping Friendly Book itself. The colors are rich but the subject matter is horrifying.',
+      },
+      {
+        keywords: ['book', 'helping friendly book', 'glass case', 'case'],
+        description: 'The Helping Friendly Book sits under thick glass, its ancient pages yellowed but its wisdom still radiating through the barrier. This is the book that contained all the knowledge the Lizards needed - stolen by Wilson to keep them ignorant and afraid. You can almost hear it calling to be freed.',
+      },
+      {
+        keywords: ['ceiling', 'shadow', 'shadows'],
+        description: 'The ceiling vanishes into darkness far above. Occasionally you think you see something move up there - bats, perhaps, or something else that prefers to watch from the shadows.',
+      },
+    ],
   },
   {
     id: 'wilson_tower',
@@ -45,6 +63,24 @@ export const roomTemplates: RoomTemplate[] = [
     flags: {},
     defaultItems: [],
     defaultNpcs: [],
+    features: [
+      {
+        keywords: ['telescope', 'scope'],
+        description: 'A brass telescope of exquisite craftsmanship, aimed perpetually at Icculus\'s distant tower. Wilson is obsessed with the prophet - perhaps fearing what knowledge Icculus might share with the Lizards, perhaps jealous of wisdom he can never possess.',
+      },
+      {
+        keywords: ['village', 'lizard village'],
+        description: 'Far below, the Lizard village looks peaceful from this height - a cluster of humble homes around a central square. But you know that down there, fear rules every moment of every day.',
+      },
+      {
+        keywords: ['forest', 'dark forest'],
+        description: 'The forest stretches to the east, a vast darkness that even Wilson\'s soldiers fear to enter. They say the trees themselves hide secrets, and that the resistance meets in glades no Prussian has ever found.',
+      },
+      {
+        keywords: ['icculus', 'tower', 'distant tower', 'peak'],
+        description: 'Icculus\'s tower stands on a distant peak, barely visible through the haze. It seems to glow faintly, even in daylight - the light of knowledge that Wilson can never extinguish.',
+      },
+    ],
   },
   {
     id: 'castle_dungeon',
@@ -57,6 +93,24 @@ export const roomTemplates: RoomTemplate[] = [
     flags: {},
     defaultItems: [],
     defaultNpcs: [{ npcTemplateId: 107, respawnMinutes: 0 }], // Dungeon Jailer
+    features: [
+      {
+        keywords: ['cages', 'cage', 'iron cages', 'prisoners', 'prisoner'],
+        description: 'The iron cages are barely large enough for a Lizard to sit in. Some prisoners stare at nothing, broken. Others watch you with desperate hope. One whispers: "They took me for reading. Just reading."',
+      },
+      {
+        keywords: ['chains', 'chain'],
+        description: 'Heavy iron chains hang from the walls, some still bearing the marks of those who struggled against them. The metal is cold to the touch and slightly damp.',
+      },
+      {
+        keywords: ['desk', 'papers', 'meal', 'jailer desk'],
+        description: 'The jailer\'s desk is cluttered with yellowed papers - arrest warrants, mostly, for crimes like "spreading seditious ideas" and "possession of unauthorized literature." A half-eaten bowl of gruel sits among them, attracting flies.',
+      },
+      {
+        keywords: ['water', 'drip', 'dripping'],
+        description: 'Water drips from somewhere in the darkness - a slow, maddening sound that never stops. The prisoners say it\'s worse than the beatings.',
+      },
+    ],
   },
   {
     id: 'guard_barracks',
@@ -140,6 +194,20 @@ export const roomTemplates: RoomTemplate[] = [
     defaultItems: [],
     defaultNpcs: [
       { npcTemplateId: 112, respawnMinutes: 0 }, // Village Elder
+    ],
+    features: [
+      {
+        keywords: ['fountain', 'dry fountain'],
+        description: 'The fountain hasn\'t flowed for years - Wilson diverted the water to his castle. But Lizards still gather around it, remembering when it sang with crystal water. Someone has placed fresh flowers at its base.',
+      },
+      {
+        keywords: ['board', 'proclamations', 'proclamation', 'notice', 'notices'],
+        description: 'Wilson\'s proclamations demand ever-higher taxes, ban ever-more books, and promise dire punishment for sedition. Someone has drawn Wilson with a particularly unflattering face on the latest one. The guards pretend not to notice - they\'re Lizards too, after all.',
+      },
+      {
+        keywords: ['picture', 'rude picture', 'drawing'],
+        description: 'The drawing depicts Wilson as a bloated toad sitting on a pile of stolen books. Despite the danger, you can\'t help but smile. Art finds a way.',
+      },
     ],
   },
   {

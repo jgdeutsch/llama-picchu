@@ -660,10 +660,14 @@ export function createImplementorAccounts(): { opus: string; sprig: string } {
   const hashPassword = (pwd: string) => crypto.createHash('sha256').update(pwd).digest('hex');
 
   // Check if accounts already exist
-  const existingOpus = db.prepare(`SELECT id FROM accounts WHERE username = 'Opus'`).get();
-  const existingSprig = db.prepare(`SELECT id FROM accounts WHERE username = 'Sprig'`).get();
+  const existingOpus = db.prepare(`SELECT id FROM accounts WHERE username = 'Opus'`).get() as { id: number } | undefined;
+  const existingSprig = db.prepare(`SELECT id FROM accounts WHERE username = 'Sprig'`).get() as { id: number } | undefined;
 
-  if (!existingOpus) {
+  if (existingOpus) {
+    // Update existing Opus password
+    db.prepare(`UPDATE accounts SET password_hash = ? WHERE username = 'Opus'`).run(hashPassword(opusPassword));
+    console.log('Reset password for implementor: Opus');
+  } else {
     // Create Opus account and player
     const opusResult = db.prepare(`
       INSERT INTO accounts (username, password_hash, email, is_admin)
@@ -682,7 +686,11 @@ export function createImplementorAccounts(): { opus: string; sprig: string } {
     console.log('Created implementor account: Opus');
   }
 
-  if (!existingSprig) {
+  if (existingSprig) {
+    // Update existing Sprig password
+    db.prepare(`UPDATE accounts SET password_hash = ? WHERE username = 'Sprig'`).run(hashPassword(sprigPassword));
+    console.log('Reset password for implementor: Sprig');
+  } else {
     // Create Sprig account and player
     const sprigResult = db.prepare(`
       INSERT INTO accounts (username, password_hash, email, is_admin)

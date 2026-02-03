@@ -56,6 +56,51 @@ interface TelnetConnection {
 const connections: Map<net.Socket, TelnetConnection> = new Map();
 const playerSockets: Map<number, net.Socket> = new Map();
 
+// Text formatting constants
+const LINE_WIDTH = 72;  // Max characters per line (leaves margin on 80-char terminals)
+const PADDING = '  ';   // Left padding for wrapped text
+
+// Word-wrap text to fit within LINE_WIDTH, with padding
+// Preserves existing line breaks and doesn't cut words
+function wordWrap(text: string, width: number = LINE_WIDTH, padding: string = PADDING): string {
+  const lines: string[] = [];
+
+  // Split by existing line breaks first
+  const paragraphs = text.split(/\r?\n/);
+
+  for (const paragraph of paragraphs) {
+    if (paragraph.trim() === '') {
+      lines.push('');
+      continue;
+    }
+
+    const words = paragraph.split(/\s+/);
+    let currentLine = padding;
+
+    for (const word of words) {
+      // If adding this word would exceed width, start new line
+      if (currentLine.length + word.length + 1 > width && currentLine.trim() !== '') {
+        lines.push(currentLine);
+        currentLine = padding + word;
+      } else {
+        // Add word to current line
+        if (currentLine === padding) {
+          currentLine = padding + word;
+        } else {
+          currentLine += ' ' + word;
+        }
+      }
+    }
+
+    // Don't forget the last line
+    if (currentLine.trim() !== '') {
+      lines.push(currentLine);
+    }
+  }
+
+  return lines.join('\r\n');
+}
+
 // Send text to a socket with optional color
 function send(socket: net.Socket, text: string, color?: string): void {
   if (socket.writable) {
@@ -66,6 +111,12 @@ function send(socket: net.Socket, text: string, color?: string): void {
 
 function sendLine(socket: net.Socket, text: string, color?: string): void {
   send(socket, text + '\r\n', color);
+}
+
+// Send wrapped text (for long descriptions, story text, etc.)
+function sendWrapped(socket: net.Socket, text: string, color?: string): void {
+  const wrapped = wordWrap(text);
+  send(socket, wrapped + '\r\n', color);
 }
 
 function sendPrompt(socket: net.Socket, prompt: string = '> '): void {
@@ -650,16 +701,24 @@ function processCommandWithOutput(
     targetId: number,
     message: any
   ) => {
-    if (targetId === playerId && message.type === 'output') {
-      outputHandler(message.text, message.messageType);
+    if (targetId === playerId) {
+      // Messages to the current player
+      if (message.type === 'output' && message.text) {
+        outputHandler(message.text, message.messageType);
+      }
+      // Ignore other message types (room_update, etc.) for telnet - they're for WebSocket clients
     } else {
       // For messages to other players, use the telnet system
       const socket = playerSockets.get(targetId);
       if (socket) {
-        sendLine(socket, message.text || message.message);
-        const conn = connections.get(socket);
-        if (conn?.state === 'playing') {
-          sendPrompt(socket);
+        // Only send if there's actual text content
+        const textContent = message.text || message.message;
+        if (textContent) {
+          sendLine(socket, textContent);
+          const conn = connections.get(socket);
+          if (conn?.state === 'playing') {
+            sendPrompt(socket);
+          }
         }
       }
     }
