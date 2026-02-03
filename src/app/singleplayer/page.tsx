@@ -1,0 +1,546 @@
+'use client';
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  GameState,
+  createInitialState,
+  processCommand,
+  getFallbackResponse,
+} from '@/lib/gameEngine';
+
+const BOOT_SCREEN = `
+
+    ██╗     ██╗      █████╗ ███╗   ███╗ █████╗
+    ██║     ██║     ██╔══██╗████╗ ████║██╔══██╗
+    ██║     ██║     ███████║██╔████╔██║███████║
+    ██║     ██║     ██╔══██║██║╚██╔╝██║██╔══██║
+    ███████╗███████╗██║  ██║██║ ╚═╝ ██║██║  ██║
+    ╚══════╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝
+
+              ═══════════════════════════
+               A Text Adventure in the
+              Style of Rosencrantz and
+                Guildenstern Are Dead
+              ═══════════════════════════
+
+                  INCAN ERA - 1450 CE
+
+    SYSTEM READY...
+    LOADING CONSCIOUSNESS...
+    WOOL DENSITY: OPTIMAL
+    PHILOSOPHICAL CAPACITY: MAXIMUM
+
+`;
+
+const ASCII_ART = {
+  llama: `
+                  @@@@
+                 @@  @@
+                @@    @@
+               @@  @@  @@
+               @@ @@@@ @@
+                @@    @@
+                 @@@@@@
+                    @
+           @@@@@@@@@@@@@@@@@
+         @@                 @@
+        @@    @@@@@@@@@@     @@
+       @@   @@          @@    @@
+      @@   @@            @@   @@
+     @@   @@              @@   @@
+     @@  @@                @@  @@
+     @@ @@                  @@ @@
+     @@@@                    @@@@
+`,
+  goldenLlama: `
+╔═══════════════════════════════════════════════╗
+║                                               ║
+║     *  . *       *    .  *   *   .    *      ║
+║  .    *    ████████    *    .       *        ║
+║*    .      ██ ░░░░ ██      *    *  .         ║
+║  *   .    ██ ░▓▓▓▓░ ██   .    *              ║
+║.    *     ██ ░▓████▓░ ██    .     *    .     ║
+║  .   *    ██ ░▓▓▓▓░ ██   *    .              ║
+║*    .      ████████████     .   *      .     ║
+║   *   .       ██  ██     *    .    *         ║
+║ .    *  ██████████████████    *     .        ║
+║   *   ██                  ██    .    *       ║
+║.     ██  ████████████████  ██     *    .     ║
+║  *  ██  ██              ██  ██  .            ║
+║.   ██  ██                ██  ██    .     *   ║
+║   ████                    ████   *    .      ║
+║                                               ║
+║        ★ THE GOLDEN LLAMA OF LEGEND ★        ║
+║                                               ║
+╚═══════════════════════════════════════════════╝
+`,
+  questionWin: `
+╭─────────────────────────────────────╮
+│     ___                             │
+│    /   \\    MASTER OF QUESTIONS!   │
+│   | ? ? |                           │
+│    \\___/    You have defeated the  │
+│      │      philosophical alpaca!   │
+│   ╭──┴──╮                           │
+│   │ ??? │   The ancient art of      │
+│   ╰─────╯   rhetorical combat       │
+│             is yours.               │
+╰─────────────────────────────────────╯
+`,
+  secretDoor: `
+┌─────────────────────────────────────┐
+│  ╔═══════════════════════════════╗  │
+│  ║ █████████████████████████████ ║  │
+│  ║ █                           █ ║  │
+│  ║ █   ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄   █ ║  │
+│  ║ █   █ THE DOOR OPENS... █   █ ║  │
+│  ║ █   █                   █   █ ║  │
+│  ║ █   █  A passage east   █   █ ║  │
+│  ║ █   █                   █   █ ║  │
+│  ║ █   ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀   █ ║  │
+│  ║ █                           █ ║  │
+│  ║ █████████████████████████████ ║  │
+│  ╚═══════════════════════════════╝  │
+└─────────────────────────────────────┘
+`,
+};
+
+const INTRO_TEXT = `You are a llama.
+
+This is, perhaps, the only thing you know for certain.
+You have four legs, excellent wool, and a vague sense
+that something significant is about to happen.
+
+The year is the Incan era. The sun is worshipped, the
+stones are precisely cut, and you're standing in what
+will one day be a major tourist attraction.
+
+Type HELP for commands.`;
+
+interface OutputLine {
+  id: number;
+  type: 'system' | 'input' | 'output' | 'error' | 'ascii';
+  text: string;
+}
+
+const LINES_PER_PAGE = 20;
+
+export default function SinglePlayerGame() {
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [input, setInput] = useState('');
+  const [outputBuffer, setOutputBuffer] = useState<OutputLine[]>([]);
+  const [visibleStartIndex, setVisibleStartIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [lineCounter, setLineCounter] = useState(0);
+  const [isBooting, setIsBooting] = useState(true);
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [waitingForSpace, setWaitingForSpace] = useState(false);
+  const [pendingContent, setPendingContent] = useState<{text: string, type: OutputLine['type']}[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (gameState && !isBooting) {
+      localStorage.setItem('llama-picchu-save', JSON.stringify(gameState));
+    }
+  }, [gameState, isBooting]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('llama-picchu-save');
+    if (saved) {
+      try {
+        JSON.parse(saved) as GameState;
+        sessionStorage.setItem('llama-picchu-pending-restore', saved);
+      } catch {
+        // Invalid save, ignore
+      }
+    }
+  }, []);
+
+  const visibleLines = outputBuffer.slice(
+    Math.max(0, visibleStartIndex),
+    visibleStartIndex + LINES_PER_PAGE
+  );
+
+  const addOutput = useCallback((text: string, type: OutputLine['type'] = 'output') => {
+    const lines = text.split('\n');
+
+    setLineCounter(prev => {
+      let id = prev;
+      const newLines: OutputLine[] = lines.map(line => ({
+        id: ++id,
+        type,
+        text: line
+      }));
+
+      setOutputBuffer(current => {
+        const updated = [...current, ...newLines];
+        if (updated.length > LINES_PER_PAGE) {
+          setWaitingForSpace(true);
+        }
+        return updated;
+      });
+
+      return id;
+    });
+  }, []);
+
+  const advancePage = useCallback(() => {
+    const newStart = visibleStartIndex + LINES_PER_PAGE;
+
+    if (newStart < outputBuffer.length) {
+      setVisibleStartIndex(newStart);
+      if (newStart + LINES_PER_PAGE >= outputBuffer.length && pendingContent.length === 0) {
+        setWaitingForSpace(false);
+      }
+    } else if (pendingContent.length > 0) {
+      const [next, ...rest] = pendingContent;
+      setPendingContent(rest);
+      addOutput(next.text, next.type);
+      if (rest.length === 0) {
+        setWaitingForSpace(false);
+      }
+    } else {
+      setWaitingForSpace(false);
+    }
+  }, [visibleStartIndex, outputBuffer.length, pendingContent, addOutput]);
+
+  useEffect(() => {
+    addOutput(BOOT_SCREEN, 'ascii');
+    setWaitingForSpace(true);
+  }, [addOutput]);
+
+  const startGame = useCallback(() => {
+    const pendingRestore = sessionStorage.getItem('llama-picchu-pending-restore');
+    let restoredState: GameState | null = null;
+
+    if (pendingRestore) {
+      try {
+        restoredState = JSON.parse(pendingRestore) as GameState;
+        sessionStorage.removeItem('llama-picchu-pending-restore');
+      } catch {
+        // Invalid save, ignore
+      }
+    }
+
+    const stateToUse = restoredState || createInitialState();
+    setGameState(stateToUse);
+    setIsBooting(false);
+
+    setOutputBuffer([]);
+    setVisibleStartIndex(0);
+    setLineCounter(0);
+    setWaitingForSpace(false);
+    setPendingContent([]);
+
+    setTimeout(() => {
+      if (restoredState) {
+        addOutput('[ GAME RESTORED FROM AUTOSAVE ]', 'system');
+        addOutput('', 'output');
+        const room = restoredState.rooms[restoredState.player.location];
+        addOutput(room.name, 'output');
+        addOutput('─'.repeat(room.name.length), 'output');
+        addOutput(room.description, 'output');
+        addOutput('', 'output');
+        const items = Object.keys(room.items);
+        if (items.length > 0) {
+          addOutput(`You see: ${items.join(', ')}`, 'output');
+        }
+        const exitNames: Record<string, string> = {
+          n: 'north', s: 'south', e: 'east', w: 'west',
+          u: 'up', d: 'down'
+        };
+        const exits = Object.keys(room.exits).map(d => exitNames[d] || d);
+        addOutput(`Exits: ${exits.join(', ')}`, 'output');
+      } else {
+        addOutput(ASCII_ART.llama, 'ascii');
+        addOutput('', 'output');
+        addOutput(INTRO_TEXT, 'system');
+        addOutput('', 'output');
+
+        const room = stateToUse.rooms[stateToUse.player.location];
+        addOutput(room.name, 'output');
+        addOutput('─'.repeat(room.name.length), 'output');
+        addOutput(room.description, 'output');
+        addOutput('', 'output');
+        addOutput(`You see: ${Object.keys(room.items).join(', ')}`, 'output');
+        addOutput(`Exits: north, east, south, west`, 'output');
+      }
+    }, 100);
+  }, [addOutput]);
+
+  const focusInput = useCallback(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    focusInput();
+  }, [focusInput, isBooting, waitingForSpace, isLoading]);
+
+  useEffect(() => {
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      if (waitingForSpace) {
+        if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab', 'Escape'].includes(e.key)) {
+          return;
+        }
+        e.preventDefault();
+        if (isBooting) {
+          startGame();
+        } else {
+          advancePage();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKey);
+    return () => window.removeEventListener('keydown', handleGlobalKey);
+  }, [waitingForSpace, isBooting, startGame, advancePage]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (waitingForSpace) {
+      if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab', 'Escape'].includes(e.key)) {
+        return;
+      }
+      e.preventDefault();
+      if (isBooting) {
+        startGame();
+      } else {
+        advancePage();
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (commandHistory.length > 0) {
+        const newIndex = historyIndex < commandHistory.length - 1
+          ? historyIndex + 1
+          : historyIndex;
+        setHistoryIndex(newIndex);
+        setInput(commandHistory[commandHistory.length - 1 - newIndex] || '');
+      }
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historyIndex > 0) {
+        const newIndex = historyIndex - 1;
+        setHistoryIndex(newIndex);
+        setInput(commandHistory[commandHistory.length - 1 - newIndex] || '');
+      } else if (historyIndex === 0) {
+        setHistoryIndex(-1);
+        setInput('');
+      }
+      return;
+    }
+  }, [waitingForSpace, isBooting, startGame, advancePage, commandHistory, historyIndex]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || !gameState || isLoading || waitingForSpace) return;
+
+    const userInput = input.trim();
+    setInput('');
+    setHistoryIndex(-1);
+
+    setCommandHistory(prev => [...prev.slice(-50), userInput]);
+
+    const prompt = gameState.questionGame.active ? '??>' : 'C:\\>';
+    addOutput(`${prompt} ${userInput}`, 'input');
+
+    if (userInput.toLowerCase() === 'save') {
+      localStorage.setItem('llama-picchu-save', JSON.stringify(gameState));
+      addOutput('Game saved. Your progress is stored safely in the stones of time.', 'system');
+      return;
+    }
+
+    if (userInput.toLowerCase() === 'new' || userInput.toLowerCase() === 'restart') {
+      localStorage.removeItem('llama-picchu-save');
+      const freshState = createInitialState();
+      setGameState(freshState);
+      setOutputBuffer([]);
+      setVisibleStartIndex(0);
+      setTimeout(() => {
+        addOutput(ASCII_ART.llama, 'ascii');
+        addOutput('', 'output');
+        addOutput(INTRO_TEXT, 'system');
+        addOutput('', 'output');
+        const room = freshState.rooms[freshState.player.location];
+        addOutput(room.name, 'output');
+        addOutput('─'.repeat(room.name.length), 'output');
+        addOutput(room.description, 'output');
+        addOutput('', 'output');
+        addOutput(`You see: ${Object.keys(room.items).join(', ')}`, 'output');
+        addOutput(`Exits: north, east, south, west`, 'output');
+      }, 100);
+      return;
+    }
+
+    const result = processCommand(gameState, userInput);
+
+    let asciiToShow: string | null = null;
+    if (result.output?.includes('door recognizes these offerings')) {
+      asciiToShow = ASCII_ART.secretDoor;
+    }
+    if (result.output?.includes("You've won this round")) {
+      asciiToShow = ASCII_ART.questionWin;
+    }
+    if (result.output?.includes('VICTORY')) {
+      asciiToShow = ASCII_ART.goldenLlama;
+    }
+
+    setGameState(result.state);
+
+    if (result.needsLLM) {
+      setIsLoading(true);
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userInput: result.userInput }),
+        });
+        const data = await response.json();
+        addOutput(data.response || getFallbackResponse());
+      } catch {
+        addOutput(getFallbackResponse());
+      }
+      setIsLoading(false);
+    } else if (result.output) {
+      if (asciiToShow) {
+        addOutput(asciiToShow, 'ascii');
+      }
+      addOutput(result.output);
+
+      setVisibleStartIndex(prev => {
+        const newTotal = outputBuffer.length + result.output.split('\n').length + (asciiToShow ? asciiToShow.split('\n').length : 0);
+        return Math.max(0, newTotal - LINES_PER_PAGE);
+      });
+    }
+  };
+
+  const getLineColor = (type: OutputLine['type']) => {
+    switch (type) {
+      case 'system': return 'text-amber-500';
+      case 'input': return 'text-green-400';
+      case 'error': return 'text-red-500';
+      case 'ascii': return 'text-amber-400';
+      default: return 'text-amber-100';
+    }
+  };
+
+  return (
+    <div
+      className="h-screen w-screen bg-black text-amber-100 font-mono flex flex-col relative overflow-hidden select-none"
+      onClick={focusInput}
+    >
+      {/* CRT effects */}
+      <div className="absolute inset-0 pointer-events-none z-20">
+        <div className="absolute inset-0 bg-gradient-radial from-transparent via-transparent to-black opacity-30" />
+        <div
+          className="absolute inset-0 opacity-[0.015]"
+          style={{
+            backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0, 0, 0, 0.3) 1px, rgba(0, 0, 0, 0.3) 2px)',
+            backgroundSize: '100% 2px',
+          }}
+        />
+      </div>
+
+      {/* Terminal content */}
+      <div className="relative z-10 flex flex-col h-full p-4">
+        {/* Header */}
+        <header className="text-center mb-3 pb-2 border-b border-amber-700/40">
+          <h1 className="text-xl text-amber-400 font-bold tracking-[0.25em] uppercase">
+            LLAMA AT MACHU PICCHU
+          </h1>
+          <div className="text-amber-600/50 text-[10px] tracking-widest mt-1">
+            ════════════════════════════════════════════
+          </div>
+        </header>
+
+        {/* Terminal output */}
+        <div
+          className="flex-1 overflow-hidden"
+          style={{
+            textShadow: '0 0 4px rgba(251, 191, 36, 0.3)',
+          }}
+        >
+          {visibleLines.map((line) => (
+            <div
+              key={line.id}
+              className={`leading-snug ${getLineColor(line.type)} ${
+                line.type === 'ascii' ? 'whitespace-pre text-[10px] md:text-xs leading-none' : 'text-sm whitespace-pre-wrap break-words'
+              }`}
+            >
+              {line.text || '\u00A0'}
+            </div>
+          ))}
+          {isLoading && (
+            <div className="text-amber-600 animate-pulse text-sm">
+              ◐ PROCESSING...
+            </div>
+          )}
+        </div>
+
+        {/* PRESS SPACE stripe */}
+        {waitingForSpace && (
+          <div className="absolute bottom-20 left-0 right-0 z-30">
+            <div className="bg-amber-600 text-black py-2 text-center font-bold text-sm tracking-widest animate-pulse">
+              ════════════════  PRESS ANY KEY TO CONTINUE  ════════════════
+            </div>
+          </div>
+        )}
+
+        {/* Input area */}
+        <div className="border-t border-amber-700/40 pt-3 mt-2">
+          <form onSubmit={handleSubmit} className="flex items-center gap-2">
+            <span className="text-green-400 font-bold text-sm">
+              {gameState?.questionGame.active ? '??>' : 'C:\\>'}
+            </span>
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value.toUpperCase())}
+              onKeyDown={handleKeyDown}
+              disabled={isLoading || isBooting || waitingForSpace}
+              className="flex-1 bg-transparent border-none outline-none text-green-400 placeholder-amber-700/40 uppercase tracking-wider text-sm"
+              placeholder={
+                waitingForSpace ? '' :
+                isLoading ? 'PROCESSING...' :
+                'ENTER COMMAND...'
+              }
+              autoFocus
+              autoComplete="off"
+              spellCheck="false"
+              style={{ textShadow: '0 0 4px rgba(74, 222, 128, 0.4)' }}
+            />
+            {!waitingForSpace && <span className="text-green-400 animate-pulse">▌</span>}
+          </form>
+        </div>
+
+        {/* Status bar */}
+        <footer className="mt-2 text-[9px] text-amber-700/40 border-t border-amber-800/30 pt-2">
+          <div className="flex justify-between items-center">
+            <span>↑↓ HISTORY</span>
+            <span>LLAMA OS v1.0 - SINGLE PLAYER</span>
+            <span>TURN: {gameState?.turnCount || 0}</span>
+          </div>
+        </footer>
+      </div>
+
+      <style jsx global>{`
+        .bg-gradient-radial {
+          background: radial-gradient(ellipse at center, transparent 0%, transparent 60%, black 100%);
+        }
+        * {
+          font-family: 'JetBrains Mono', 'IBM Plex Mono', 'Consolas', 'Courier New', monospace !important;
+        }
+        html, body {
+          overflow: hidden;
+          height: 100%;
+          background: black;
+        }
+      `}</style>
+    </div>
+  );
+}

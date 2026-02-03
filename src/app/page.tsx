@@ -1,16 +1,85 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  GameState,
-  createInitialState,
-  processCommand,
-  getFallbackResponse,
-} from '@/lib/gameEngine';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
-// Simpler boot screen that fits
-const BOOT_SCREEN = `
+export default function LandingPage() {
+  const router = useRouter();
+  const [mode, setMode] = useState<'menu' | 'login' | 'register'>('menu');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Login failed');
+        setLoading(false);
+        return;
+      }
+
+      // Store account info
+      localStorage.setItem('accountId', String(data.accountId));
+      localStorage.setItem('username', username);
+
+      // Navigate to character select
+      router.push('/character/select');
+    } catch {
+      setError('Connection failed');
+    }
+    setLoading(false);
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, email }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Registration failed');
+        setLoading(false);
+        return;
+      }
+
+      // Auto-login after registration
+      localStorage.setItem('accountId', String(data.accountId));
+      localStorage.setItem('username', username);
+      router.push('/character/create');
+    } catch {
+      setError('Connection failed');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-black text-amber-100 font-mono flex flex-col items-center justify-center p-4">
+      {/* ASCII Title */}
+      <pre className="text-amber-400 text-xs md:text-sm mb-8 text-center">
+{`
     ██╗     ██╗      █████╗ ███╗   ███╗ █████╗
     ██║     ██║     ██╔══██╗████╗ ████║██╔══██╗
     ██║     ██║     ███████║██╔████╔██║███████║
@@ -18,577 +87,162 @@ const BOOT_SCREEN = `
     ███████╗███████╗██║  ██║██║ ╚═╝ ██║██║  ██║
     ╚══════╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝
 
-              ═══════════════════════════
-               A Text Adventure in the
-              Style of Rosencrantz and
-                Guildenstern Are Dead
-              ═══════════════════════════
+    ╔═══════════════════════════════════════╗
+    ║        PICCHU MUD                     ║
+    ║   Multi-User Dungeon Adventure        ║
+    ╚═══════════════════════════════════════╝
+`}
+      </pre>
 
-                  INCAN ERA - 1450 CE
+      {mode === 'menu' && (
+        <div className="flex flex-col items-center gap-4">
+          <p className="text-amber-300 text-center max-w-lg mb-4">
+            Welcome to Llama Picchu, a DikuMUD-style adventure set in the ancient Incan citadel.
+            Play as a llama, choose your class, and explore the mystical ruins with other players!
+          </p>
 
-    SYSTEM READY...
-    LOADING CONSCIOUSNESS...
-    WOOL DENSITY: OPTIMAL
-    PHILOSOPHICAL CAPACITY: MAXIMUM
-
-`;
-
-// ASCII Art for achievements
-const ASCII_ART = {
-  llama: `
-                  @@@@
-                 @@  @@
-                @@    @@
-               @@  @@  @@
-               @@ @@@@ @@
-                @@    @@
-                 @@@@@@
-                    @
-           @@@@@@@@@@@@@@@@@
-         @@                 @@
-        @@    @@@@@@@@@@     @@
-       @@   @@          @@    @@
-      @@   @@            @@   @@
-     @@   @@              @@   @@
-     @@  @@                @@  @@
-     @@ @@                  @@ @@
-     @@@@                    @@@@
-`,
-  goldenLlama: `
-╔═══════════════════════════════════════════════╗
-║                                               ║
-║     *  . *       *    .  *   *   .    *      ║
-║  .    *    ████████    *    .       *        ║
-║*    .      ██ ░░░░ ██      *    *  .         ║
-║  *   .    ██ ░▓▓▓▓░ ██   .    *              ║
-║.    *     ██ ░▓████▓░ ██    .     *    .     ║
-║  .   *    ██ ░▓▓▓▓░ ██   *    .              ║
-║*    .      ████████████     .   *      .     ║
-║   *   .       ██  ██     *    .    *         ║
-║ .    *  ██████████████████    *     .        ║
-║   *   ██                  ██    .    *       ║
-║.     ██  ████████████████  ██     *    .     ║
-║  *  ██  ██              ██  ██  .            ║
-║.   ██  ██                ██  ██    .     *   ║
-║   ████                    ████   *    .      ║
-║                                               ║
-║        ★ THE GOLDEN LLAMA OF LEGEND ★        ║
-║                                               ║
-╚═══════════════════════════════════════════════╝
-`,
-  questionWin: `
-╭─────────────────────────────────────╮
-│     ___                             │
-│    /   \\    MASTER OF QUESTIONS!   │
-│   | ? ? |                           │
-│    \\___/    You have defeated the  │
-│      │      philosophical alpaca!   │
-│   ╭──┴──╮                           │
-│   │ ??? │   The ancient art of      │
-│   ╰─────╯   rhetorical combat       │
-│             is yours.               │
-╰─────────────────────────────────────╯
-`,
-  secretDoor: `
-┌─────────────────────────────────────┐
-│  ╔═══════════════════════════════╗  │
-│  ║ █████████████████████████████ ║  │
-│  ║ █                           █ ║  │
-│  ║ █   ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄   █ ║  │
-│  ║ █   █ THE DOOR OPENS... █   █ ║  │
-│  ║ █   █                   █   █ ║  │
-│  ║ █   █  A passage east   █   █ ║  │
-│  ║ █   █                   █   █ ║  │
-│  ║ █   ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀   █ ║  │
-│  ║ █                           █ ║  │
-│  ║ █████████████████████████████ ║  │
-│  ╚═══════════════════════════════╝  │
-└─────────────────────────────────────┘
-`,
-};
-
-const INTRO_TEXT = `You are a llama.
-
-This is, perhaps, the only thing you know for certain.
-You have four legs, excellent wool, and a vague sense
-that something significant is about to happen.
-
-The year is the Incan era. The sun is worshipped, the
-stones are precisely cut, and you're standing in what
-will one day be a major tourist attraction.
-
-Type HELP for commands.`;
-
-interface OutputLine {
-  id: number;
-  type: 'system' | 'input' | 'output' | 'error' | 'ascii';
-  text: string;
-}
-
-const LINES_PER_PAGE = 20;
-
-export default function Game() {
-  const [gameState, setGameState] = useState<GameState | null>(null);
-  const [input, setInput] = useState('');
-  const [outputBuffer, setOutputBuffer] = useState<OutputLine[]>([]);
-  const [visibleStartIndex, setVisibleStartIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-  const [lineCounter, setLineCounter] = useState(0);
-  const [isBooting, setIsBooting] = useState(true);
-  const [commandHistory, setCommandHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [waitingForSpace, setWaitingForSpace] = useState(false);
-  const [pendingContent, setPendingContent] = useState<{text: string, type: OutputLine['type']}[]>([]);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Auto-save game state to localStorage
-  useEffect(() => {
-    if (gameState && !isBooting) {
-      localStorage.setItem('llama-picchu-save', JSON.stringify(gameState));
-    }
-  }, [gameState, isBooting]);
-
-  // Load saved game on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('llama-picchu-save');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as GameState;
-        // We'll restore after boot sequence
-        sessionStorage.setItem('llama-picchu-pending-restore', saved);
-      } catch {
-        // Invalid save, ignore
-      }
-    }
-  }, []);
-
-  // Get visible lines
-  const visibleLines = outputBuffer.slice(
-    Math.max(0, visibleStartIndex),
-    visibleStartIndex + LINES_PER_PAGE
-  );
-
-  const hasMoreContent = visibleStartIndex + LINES_PER_PAGE < outputBuffer.length || pendingContent.length > 0;
-
-  const addOutput = useCallback((text: string, type: OutputLine['type'] = 'output') => {
-    const lines = text.split('\n');
-
-    setLineCounter(prev => {
-      let id = prev;
-      const newLines: OutputLine[] = lines.map(line => ({
-        id: ++id,
-        type,
-        text: line
-      }));
-
-      setOutputBuffer(current => {
-        const updated = [...current, ...newLines];
-        // Check if content overflows
-        if (updated.length > LINES_PER_PAGE) {
-          setWaitingForSpace(true);
-        }
-        // Show from start, user presses space to see more
-        return updated;
-      });
-
-      return id;
-    });
-  }, []);
-
-  // Queue content to show after space press
-  const queueContent = useCallback((text: string, type: OutputLine['type'] = 'output') => {
-    setPendingContent(prev => [...prev, { text, type }]);
-    if (!waitingForSpace) {
-      setWaitingForSpace(true);
-    }
-  }, [waitingForSpace]);
-
-  // Advance to next page on SPACE
-  const advancePage = useCallback(() => {
-    const newStart = visibleStartIndex + LINES_PER_PAGE;
-
-    if (newStart < outputBuffer.length) {
-      // More content in buffer to show
-      setVisibleStartIndex(newStart);
-      if (newStart + LINES_PER_PAGE >= outputBuffer.length && pendingContent.length === 0) {
-        setWaitingForSpace(false);
-      }
-    } else if (pendingContent.length > 0) {
-      // Add next pending content
-      const [next, ...rest] = pendingContent;
-      setPendingContent(rest);
-      addOutput(next.text, next.type);
-      // Stay waiting if more pending
-      if (rest.length === 0) {
-        setWaitingForSpace(false);
-      }
-    } else {
-      setWaitingForSpace(false);
-    }
-  }, [visibleStartIndex, outputBuffer.length, pendingContent, addOutput]);
-
-  // Boot sequence
-  useEffect(() => {
-    const bootSequence = async () => {
-      addOutput(BOOT_SCREEN, 'ascii');
-      setWaitingForSpace(true);
-    };
-
-    bootSequence();
-  }, [addOutput]);
-
-  // Handle boot -> game transition
-  const startGame = useCallback(() => {
-    // Check for saved game
-    const pendingRestore = sessionStorage.getItem('llama-picchu-pending-restore');
-    let restoredState: GameState | null = null;
-
-    if (pendingRestore) {
-      try {
-        restoredState = JSON.parse(pendingRestore) as GameState;
-        sessionStorage.removeItem('llama-picchu-pending-restore');
-      } catch {
-        // Invalid save, ignore
-      }
-    }
-
-    const stateToUse = restoredState || createInitialState();
-    setGameState(stateToUse);
-    setIsBooting(false);
-
-    // Clear and show game
-    setOutputBuffer([]);
-    setVisibleStartIndex(0);
-    setLineCounter(0);
-    setWaitingForSpace(false);
-    setPendingContent([]);
-
-    // Queue all intro content
-    setTimeout(() => {
-      if (restoredState) {
-        // Restored game
-        addOutput('[ GAME RESTORED FROM AUTOSAVE ]', 'system');
-        addOutput('', 'output');
-        const room = restoredState.rooms[restoredState.player.location];
-        addOutput(room.name, 'output');
-        addOutput('─'.repeat(room.name.length), 'output');
-        addOutput(room.description, 'output');
-        addOutput('', 'output');
-        const items = Object.keys(room.items);
-        if (items.length > 0) {
-          addOutput(`You see: ${items.join(', ')}`, 'output');
-        }
-        const exitNames: Record<string, string> = {
-          n: 'north', s: 'south', e: 'east', w: 'west',
-          u: 'up', d: 'down'
-        };
-        const exits = Object.keys(room.exits).map(d => exitNames[d] || d);
-        addOutput(`Exits: ${exits.join(', ')}`, 'output');
-      } else {
-        // New game
-        addOutput(ASCII_ART.llama, 'ascii');
-        addOutput('', 'output');
-        addOutput(INTRO_TEXT, 'system');
-        addOutput('', 'output');
-
-        const room = stateToUse.rooms[stateToUse.player.location];
-        addOutput(room.name, 'output');
-        addOutput('─'.repeat(room.name.length), 'output');
-        addOutput(room.description, 'output');
-        addOutput('', 'output');
-        addOutput(`You see: ${Object.keys(room.items).join(', ')}`, 'output');
-        addOutput(`Exits: north, east, south, west`, 'output');
-      }
-    }, 100);
-  }, [addOutput]);
-
-  // Focus input
-  const focusInput = useCallback(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  // Auto-focus input on mount and after interactions
-  useEffect(() => {
-    focusInput();
-  }, [focusInput, isBooting, waitingForSpace, isLoading]);
-
-  // Global key handler for "press any key"
-  useEffect(() => {
-    const handleGlobalKey = (e: KeyboardEvent) => {
-      if (waitingForSpace) {
-        // Ignore modifier keys alone
-        if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab', 'Escape'].includes(e.key)) {
-          return;
-        }
-        e.preventDefault();
-        if (isBooting) {
-          startGame();
-        } else {
-          advancePage();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleGlobalKey);
-    return () => window.removeEventListener('keydown', handleGlobalKey);
-  }, [waitingForSpace, isBooting, startGame, advancePage]);
-
-  // Handle keyboard in input
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (waitingForSpace) {
-      // Ignore modifier keys alone
-      if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab', 'Escape'].includes(e.key)) {
-        return;
-      }
-      e.preventDefault();
-      if (isBooting) {
-        startGame();
-      } else {
-        advancePage();
-      }
-      return;
-    }
-
-    // Command history with up/down arrows
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (commandHistory.length > 0) {
-        const newIndex = historyIndex < commandHistory.length - 1
-          ? historyIndex + 1
-          : historyIndex;
-        setHistoryIndex(newIndex);
-        setInput(commandHistory[commandHistory.length - 1 - newIndex] || '');
-      }
-      return;
-    }
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (historyIndex > 0) {
-        const newIndex = historyIndex - 1;
-        setHistoryIndex(newIndex);
-        setInput(commandHistory[commandHistory.length - 1 - newIndex] || '');
-      } else if (historyIndex === 0) {
-        setHistoryIndex(-1);
-        setInput('');
-      }
-      return;
-    }
-  }, [waitingForSpace, isBooting, startGame, advancePage, commandHistory, historyIndex]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || !gameState || isLoading || waitingForSpace) return;
-
-    const userInput = input.trim();
-    setInput('');
-    setHistoryIndex(-1);
-
-    // Add to command history
-    setCommandHistory(prev => [...prev.slice(-50), userInput]);
-
-    // Show user input
-    const prompt = gameState.questionGame.active ? '??>' : 'C:\\>';
-    addOutput(`${prompt} ${userInput}`, 'input');
-
-    // Handle SAVE command
-    if (userInput.toLowerCase() === 'save') {
-      localStorage.setItem('llama-picchu-save', JSON.stringify(gameState));
-      addOutput('Game saved. Your progress is stored safely in the stones of time.', 'system');
-      return;
-    }
-
-    // Handle NEW command to start fresh
-    if (userInput.toLowerCase() === 'new' || userInput.toLowerCase() === 'restart') {
-      localStorage.removeItem('llama-picchu-save');
-      const freshState = createInitialState();
-      setGameState(freshState);
-      setOutputBuffer([]);
-      setVisibleStartIndex(0);
-      setTimeout(() => {
-        addOutput(ASCII_ART.llama, 'ascii');
-        addOutput('', 'output');
-        addOutput(INTRO_TEXT, 'system');
-        addOutput('', 'output');
-        const room = freshState.rooms[freshState.player.location];
-        addOutput(room.name, 'output');
-        addOutput('─'.repeat(room.name.length), 'output');
-        addOutput(room.description, 'output');
-        addOutput('', 'output');
-        addOutput(`You see: ${Object.keys(room.items).join(', ')}`, 'output');
-        addOutput(`Exits: north, east, south, west`, 'output');
-      }, 100);
-      return;
-    }
-
-    // Process command
-    const result = processCommand(gameState, userInput);
-
-    // Check for achievements/ASCII art triggers
-    let asciiToShow: string | null = null;
-    if (result.output?.includes('door recognizes these offerings')) {
-      asciiToShow = ASCII_ART.secretDoor;
-    }
-    if (result.output?.includes("You've won this round")) {
-      asciiToShow = ASCII_ART.questionWin;
-    }
-    if (result.output?.includes('VICTORY')) {
-      asciiToShow = ASCII_ART.goldenLlama;
-    }
-
-    setGameState(result.state);
-
-    if (result.needsLLM) {
-      setIsLoading(true);
-      try {
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userInput: result.userInput }),
-        });
-        const data = await response.json();
-        addOutput(data.response || getFallbackResponse());
-      } catch {
-        addOutput(getFallbackResponse());
-      }
-      setIsLoading(false);
-    } else if (result.output) {
-      if (asciiToShow) {
-        addOutput(asciiToShow, 'ascii');
-      }
-      addOutput(result.output);
-
-      // Auto-scroll to end to show new content
-      setVisibleStartIndex(prev => {
-        const newTotal = outputBuffer.length + result.output.split('\n').length + (asciiToShow ? asciiToShow.split('\n').length : 0);
-        return Math.max(0, newTotal - LINES_PER_PAGE);
-      });
-    }
-  };
-
-  const getLineColor = (type: OutputLine['type']) => {
-    switch (type) {
-      case 'system': return 'text-amber-500';
-      case 'input': return 'text-green-400';
-      case 'error': return 'text-red-500';
-      case 'ascii': return 'text-amber-400';
-      default: return 'text-amber-100';
-    }
-  };
-
-  return (
-    <div
-      className="h-screen w-screen bg-black text-amber-100 font-mono flex flex-col relative overflow-hidden select-none"
-      onClick={focusInput}
-    >
-      {/* CRT effects */}
-      <div className="absolute inset-0 pointer-events-none z-20">
-        <div className="absolute inset-0 bg-gradient-radial from-transparent via-transparent to-black opacity-30" />
-        <div
-          className="absolute inset-0 opacity-[0.015]"
-          style={{
-            backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0, 0, 0, 0.3) 1px, rgba(0, 0, 0, 0.3) 2px)',
-            backgroundSize: '100% 2px',
-          }}
-        />
-      </div>
-
-      {/* Terminal content */}
-      <div className="relative z-10 flex flex-col h-full p-4">
-        {/* Header */}
-        <header className="text-center mb-3 pb-2 border-b border-amber-700/40">
-          <h1 className="text-xl text-amber-400 font-bold tracking-[0.25em] uppercase">
-            LLAMA AT MACHU PICCHU
-          </h1>
-          <div className="text-amber-600/50 text-[10px] tracking-widest mt-1">
-            ════════════════════════════════════════════
-          </div>
-        </header>
-
-        {/* Terminal output */}
-        <div
-          className="flex-1 overflow-hidden"
-          style={{
-            textShadow: '0 0 4px rgba(251, 191, 36, 0.3)',
-          }}
-        >
-          {visibleLines.map((line) => (
-            <div
-              key={line.id}
-              className={`leading-snug ${getLineColor(line.type)} ${
-                line.type === 'ascii' ? 'whitespace-pre text-[10px] md:text-xs leading-none' : 'text-sm whitespace-pre-wrap break-words'
-              }`}
+          <div className="flex flex-col gap-3 w-64">
+            <button
+              onClick={() => setMode('login')}
+              className="bg-amber-600 hover:bg-amber-500 text-black py-3 px-6 font-bold transition-colors"
             >
-              {line.text || '\u00A0'}
-            </div>
-          ))}
-          {isLoading && (
-            <div className="text-amber-600 animate-pulse text-sm">
-              ◐ PROCESSING...
-            </div>
-          )}
-        </div>
-
-        {/* PRESS SPACE stripe - full width, prominent */}
-        {waitingForSpace && (
-          <div className="absolute bottom-20 left-0 right-0 z-30">
-            <div className="bg-amber-600 text-black py-2 text-center font-bold text-sm tracking-widest animate-pulse">
-              ════════════════  PRESS ANY KEY TO CONTINUE  ════════════════
-            </div>
+              LOGIN
+            </button>
+            <button
+              onClick={() => setMode('register')}
+              className="bg-amber-800 hover:bg-amber-700 text-amber-100 py-3 px-6 font-bold transition-colors"
+            >
+              CREATE ACCOUNT
+            </button>
+            <Link
+              href="/singleplayer"
+              className="bg-amber-900/50 hover:bg-amber-800/50 text-amber-300 py-3 px-6 font-bold text-center transition-colors mt-4"
+            >
+              SINGLE PLAYER MODE
+            </Link>
           </div>
-        )}
 
-        {/* Input area */}
-        <div className="border-t border-amber-700/40 pt-3 mt-2">
-          <form onSubmit={handleSubmit} className="flex items-center gap-2">
-            <span className="text-green-400 font-bold text-sm">
-              {gameState?.questionGame.active ? '??>' : 'C:\\>'}
-            </span>
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value.toUpperCase())}
-              onKeyDown={handleKeyDown}
-              disabled={isLoading || isBooting || waitingForSpace}
-              className="flex-1 bg-transparent border-none outline-none text-green-400 placeholder-amber-700/40 uppercase tracking-wider text-sm"
-              placeholder={
-                waitingForSpace ? '' :
-                isLoading ? 'PROCESSING...' :
-                'ENTER COMMAND...'
-              }
-              autoFocus
-              autoComplete="off"
-              spellCheck="false"
-              style={{ textShadow: '0 0 4px rgba(74, 222, 128, 0.4)' }}
-            />
-            {!waitingForSpace && <span className="text-green-400 animate-pulse">▌</span>}
+          <p className="text-amber-600 text-xs mt-8">
+            Incan Era - 1450 CE
+          </p>
+        </div>
+      )}
+
+      {mode === 'login' && (
+        <div className="w-full max-w-sm">
+          <h2 className="text-xl text-amber-400 mb-6 text-center">LOGIN</h2>
+
+          <form onSubmit={handleLogin} className="flex flex-col gap-4">
+            <div>
+              <label className="text-amber-500 text-sm block mb-1">Username</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full bg-black border border-amber-700 text-amber-100 p-2 focus:border-amber-500 outline-none"
+                autoFocus
+                required
+              />
+            </div>
+
+            <div>
+              <label className="text-amber-500 text-sm block mb-1">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-black border border-amber-700 text-amber-100 p-2 focus:border-amber-500 outline-none"
+                required
+              />
+            </div>
+
+            {error && <p className="text-red-500 text-sm">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-amber-600 hover:bg-amber-500 text-black py-3 px-6 font-bold transition-colors disabled:opacity-50"
+            >
+              {loading ? 'CONNECTING...' : 'LOGIN'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setMode('menu'); setError(''); }}
+              className="text-amber-600 hover:text-amber-500 text-sm"
+            >
+              ← Back to Menu
+            </button>
           </form>
         </div>
+      )}
 
-        {/* Status bar */}
-        <footer className="mt-2 text-[9px] text-amber-700/40 border-t border-amber-800/30 pt-2">
-          <div className="flex justify-between items-center">
-            <span>↑↓ HISTORY</span>
-            <span>LLAMA OS v1.0</span>
-            <span>TURN: {gameState?.turnCount || 0}</span>
-          </div>
-        </footer>
-      </div>
+      {mode === 'register' && (
+        <div className="w-full max-w-sm">
+          <h2 className="text-xl text-amber-400 mb-6 text-center">CREATE ACCOUNT</h2>
 
-      <style jsx global>{`
-        .bg-gradient-radial {
-          background: radial-gradient(ellipse at center, transparent 0%, transparent 60%, black 100%);
-        }
-        * {
-          font-family: 'JetBrains Mono', 'IBM Plex Mono', 'Consolas', 'Courier New', monospace !important;
-        }
-        html, body {
-          overflow: hidden;
-          height: 100%;
-          background: black;
-        }
-      `}</style>
+          <form onSubmit={handleRegister} className="flex flex-col gap-4">
+            <div>
+              <label className="text-amber-500 text-sm block mb-1">Username</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full bg-black border border-amber-700 text-amber-100 p-2 focus:border-amber-500 outline-none"
+                autoFocus
+                required
+                minLength={3}
+                maxLength={20}
+              />
+            </div>
+
+            <div>
+              <label className="text-amber-500 text-sm block mb-1">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-black border border-amber-700 text-amber-100 p-2 focus:border-amber-500 outline-none"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="text-amber-500 text-sm block mb-1">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-black border border-amber-700 text-amber-100 p-2 focus:border-amber-500 outline-none"
+                required
+                minLength={6}
+              />
+              <span className="text-amber-700 text-xs">Minimum 6 characters</span>
+            </div>
+
+            {error && <p className="text-red-500 text-sm">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-amber-600 hover:bg-amber-500 text-black py-3 px-6 font-bold transition-colors disabled:opacity-50"
+            >
+              {loading ? 'CREATING...' : 'CREATE ACCOUNT'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setMode('menu'); setError(''); }}
+              className="text-amber-600 hover:text-amber-500 text-sm"
+            >
+              ← Back to Menu
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* CRT Effect */}
+      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.1)_50%)] bg-[length:100%_4px]" />
     </div>
   );
 }
