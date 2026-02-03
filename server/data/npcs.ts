@@ -868,6 +868,38 @@ export const npcTemplates: NpcTemplate[] = [
     // TRAITS: Clinical but caring, knows everyone's medical secrets, blunt
     // MOOD DEFAULT: Focused, calm
   },
+  {
+    id: 122,
+    name: 'Town Crier Barnaby',
+    shortDesc: 'A flamboyant Lizard in a feathered cap stands by the fountain, bell in hand.',
+    longDesc: 'Barnaby the Town Crier is the village\'s theatrical soul - part news broadcaster, part entertainer, part philosopher. He announces arrivals with elaborate flourishes, comments on the weather with existential dread, and somehow makes tax proclamations sound like tragic poetry. His wit is sharp, his voice carries, and his observations about passersby are uncannily accurate. Some say he knows everyone\'s business; others say he just makes very good guesses.',
+    type: 'ambient',
+    level: 8,
+    stats: { str: 8, dex: 12, con: 10, int: 16, wis: 14, cha: 20 },
+    maxHp: 40,
+    maxMana: 20,
+    behavior: 'stationary',
+    aggroRange: 0,
+    attackMessage: '',
+    deathMessage: '',
+    experienceValue: 0,
+    dialogue: {
+      greeting: '*Barnaby sweeps his cap off with a dramatic bow* Ah! A visitor to our humble square! What news do you bring from the wider world - or are you here to make news yourself?',
+      farewell: '*He rings his bell once* Safe travels, friend! May your story be worth telling!',
+      keywords: {
+        news: '*He leans in conspiratorially* News? I AM the news! Or rather, its humble vessel. Ask me about anyone who\'s passed through today, and I\'ll paint their portrait in words.',
+        wilson: '*His voice drops to a stage whisper* We don\'t speak that name too loudly here. *Normal volume* Though I hear the castle kitchens are short-staffed. Draw your own conclusions.',
+        village: 'This square has seen lovers meet, children play, and tyrants fall. I merely add narration to the eternal drama.',
+        bell: '*He holds it up proudly* My instrument! My voice before my voice! When this rings, EVERYONE listens. Even the fountain seemed to flow better in the old days when I rang it.',
+        crier: 'It\'s not just about WHAT you say, friend. It\'s about HOW you say it. Anyone can shout news. I perform it.',
+      },
+    },
+    respawnSeconds: 0,
+    keywords: ['barnaby', 'crier', 'town crier', 'announcer', 'bell'],
+    // PERSONALITY: Theatrical, witty, observant, Rosencrantz & Guildenstern energy
+    // TRAITS: Dramatic flourishes, existential tangents, knows gossip, sharp commentary
+    // MOOD DEFAULT: Performative, amused by the absurdity of existence
+  },
 ];
 
 // Helper to get NPC by ID
@@ -909,6 +941,7 @@ export function getNpcPersonalityPrompt(npcId: number): string {
     119: 'Innocent, energetic, endlessly curious, believes in heroes. Runs everywhere, asks questions, makes everything a game. Mood: Excited, happy.',
     120: 'Patient, philosophical, prone to tall tales, river-wise. Speaks slowly, exaggerates fish stories, surprisingly insightful. Mood: Tranquil, contemplative.',
     121: 'Pragmatic, unsentimental, deeply competent, quiet strength. Clinical but caring, knows medical secrets, blunt. Mood: Focused, calm.',
+    122: 'Theatrical, witty, observant, Rosencrantz & Guildenstern energy. Dramatic flourishes, existential tangents, knows gossip, sharp commentary on passersby. Mood: Performative, amused by the absurdity of existence.',
   };
 
   return personalities[npcId] || 'A resident of Gamehenge with their own hopes, fears, and daily concerns.';

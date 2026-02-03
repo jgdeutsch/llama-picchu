@@ -193,7 +193,8 @@ export const roomTemplates: RoomTemplate[] = [
     flags: { safe: true },
     defaultItems: [],
     defaultNpcs: [
-      { npcTemplateId: 112, respawnMinutes: 0 }, // Village Elder
+      { npcTemplateId: 112, respawnMinutes: 0 }, // Village Elder Moondog
+      { npcTemplateId: 122, respawnMinutes: 0 }, // Town Crier Barnaby
     ],
     features: [
       {
@@ -207,6 +208,10 @@ export const roomTemplates: RoomTemplate[] = [
       {
         keywords: ['picture', 'rude picture', 'drawing'],
         description: 'The drawing depicts Wilson as a bloated toad sitting on a pile of stolen books. Despite the danger, you can\'t help but smile. Art finds a way.',
+      },
+      {
+        keywords: ['bell', 'crier'],
+        description: 'The Town Crier\'s bell is a thing of beauty - polished brass that catches the light. When it rings, the whole square pauses to listen.',
       },
     ],
   },

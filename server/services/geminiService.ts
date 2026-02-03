@@ -621,3 +621,112 @@ Your announcement:`;
     return fallbacks[Math.floor(Math.random() * fallbacks.length)];
   }
 }
+
+// Generate NPC comment when a player enters their room
+// NPCs notice arrivals and comment based on their personality and knowledge of the player
+export async function generateNpcRoomEntryComment(
+  npcId: number,
+  npcName: string,
+  npcPersonality: string,
+  playerId: number,
+  playerName: string,
+  roomName: string
+): Promise<string | null> {
+  const db = getDatabase();
+
+  // Random chance to comment (70% - most NPCs are social)
+  if (Math.random() > 0.7) return null;
+
+  // Get NPC's relationship with this player
+  const relationship = db.prepare(`
+    SELECT capital, trust_level, times_helped, times_wronged
+    FROM social_capital
+    WHERE player_id = ? AND npc_id = ?
+  `).get(playerId, npcId) as { capital: number; trust_level: string; times_helped: number; times_wronged: number } | undefined;
+
+  // Get NPC's memories of this player
+  const memories = db.prepare(`
+    SELECT content, importance, emotional_valence
+    FROM npc_memory
+    WHERE npc_id = ? AND player_involved = ?
+    ORDER BY importance DESC, created_at DESC
+    LIMIT 3
+  `).all(npcId, playerId) as { content: string; importance: number; emotional_valence: number }[];
+
+  // Get gossip the NPC has heard about this player
+  const gossip = db.prepare(`
+    SELECT content, gossip_type
+    FROM npc_gossip
+    WHERE about_player_id = ? AND ? IN (
+      SELECT value FROM json_each(spread_to)
+    )
+    ORDER BY created_at DESC
+    LIMIT 2
+  `).all(playerId, npcId.toString()) as { content: string; gossip_type: string }[];
+
+  // Get player info
+  const player = db.prepare(`SELECT level, gold, class_id FROM players WHERE id = ?`).get(playerId) as any;
+
+  // Build context
+  let context = `Room: ${roomName}\n`;
+  context += `Player "${playerName}" just entered.\n`;
+  context += `Player is level ${player?.level || 1} with ${player?.gold || 0} gold.\n`;
+
+  if (relationship) {
+    context += `\nYour relationship: ${relationship.trust_level} (${relationship.capital > 0 ? 'positive' : relationship.capital < 0 ? 'negative' : 'neutral'})\n`;
+    if (relationship.times_helped > 0) context += `They've helped you ${relationship.times_helped} time(s).\n`;
+    if (relationship.times_wronged > 0) context += `They've wronged you ${relationship.times_wronged} time(s).\n`;
+  } else {
+    context += `\nYou don't know this person - they're a stranger.\n`;
+  }
+
+  if (memories.length > 0) {
+    context += `\nYour memories of them:\n`;
+    memories.forEach(m => {
+      context += `- ${m.content} (${m.emotional_valence > 0 ? 'positive' : m.emotional_valence < 0 ? 'negative' : 'neutral'} memory)\n`;
+    });
+  }
+
+  if (gossip.length > 0) {
+    context += `\nGossip you've heard about them:\n`;
+    gossip.forEach(g => context += `- ${g.content}\n`);
+  }
+
+  const prompt = `You are ${npcName} in Gamehenge. Your personality: ${npcPersonality}
+
+Someone just walked into your area. Generate a SHORT reaction (one sentence, under 15 words).
+
+${context}
+
+REQUIREMENTS:
+- ONE sentence only, very short
+- In character for your personality
+- If you know them, reference something specific
+- If they're a stranger, react based on their appearance/class
+- Can be greeting, observation, muttering, or comment to nearby NPCs
+- Format: *action* dialogue OR just dialogue
+- NO quotation marks
+
+Examples:
+- *glances up* Another wanderer. These roads see more feet than the inn sees coin.
+- Ah, ${playerName}. Back for more, are we?
+- *nods curtly* You.
+- *squints suspiciously* Haven't seen your face before.
+- *brightens* My favorite customer returns!
+
+Your reaction (or respond with NONE if you'd ignore them):`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const comment = result.response.text().trim();
+
+    // If NPC decided to stay silent
+    if (comment.toUpperCase() === 'NONE' || comment.length < 3) return null;
+
+    // Clean up the response
+    return comment.replace(/["""]/g, '');
+  } catch (error) {
+    console.error(`[NPC Comment] Gemini error for ${npcName}:`, error);
+    return null;
+  }
+}

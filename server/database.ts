@@ -70,7 +70,7 @@ export function initializeDatabase(): void {
 
       -- State (Start with nothing - you must earn your place in this world)
       gold INTEGER DEFAULT 0,
-      current_room TEXT DEFAULT 'border_checkpoint',
+      current_room TEXT DEFAULT 'village_square',
       is_resting INTEGER DEFAULT 0,
       is_fighting INTEGER DEFAULT 0,
 

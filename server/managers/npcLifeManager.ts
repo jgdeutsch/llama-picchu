@@ -2,11 +2,11 @@
 // Makes NPCs feel alive - they have schedules, tasks, moods, and routines
 // Key insight: NPCs only "tick" when players are nearby, then catch up on elapsed time
 
-import { getDatabase } from '../database';
+import { getDatabase, playerQueries } from '../database';
 import { worldManager } from './worldManager';
 import { connectionManager } from './connectionManager';
 import { getNpcById, getNpcPersonalityPrompt } from '../data/npcs';
-import { generateNpcGossip, generateNpcShout, getTimeOfDay } from '../services/geminiService';
+import { generateNpcGossip, generateNpcShout, getTimeOfDay, generateNpcRoomEntryComment } from '../services/geminiService';
 
 // Types
 interface NpcState {
@@ -138,6 +138,8 @@ const NPC_LOCATIONS: Record<number, { home: string; work: string }> = {
   109: { home: 'guard_barracks', work: 'guard_barracks' },        // Hendricks
   110: { home: 'castle_kitchen', work: 'castle_kitchen' },        // Cook Martha
   111: { home: 'border_checkpoint', work: 'border_checkpoint' },  // Thorne
+  112: { home: 'village_square', work: 'village_square' },        // Elder Moondog
+  122: { home: 'village_square', work: 'village_square' },        // Town Crier Barnaby
 };
 
 class NPCLifeManager {
@@ -226,18 +228,26 @@ class NPCLifeManager {
     const db = getDatabase();
     const now = new Date();
 
+    // Get player name for NPC comments
+    const player = playerQueries.findById(db).get(playerId) as { name: string } | undefined;
+    const playerName = player?.name || 'stranger';
+
+    // Get room info
+    const room = worldManager.getRoom(roomId);
+    const roomName = room?.name || 'this place';
+
     // Get all NPCs in this room and adjacent rooms
     const nearbyRooms = this.getNearbyRooms(roomId);
     const roomList = [roomId, ...nearbyRooms];
 
-    for (const room of roomList) {
+    for (const currentRoom of roomList) {
       // Get NPCs in this room
       const npcsInRoom = db.prepare(`
         SELECT ns.*, rn.npc_template_id
         FROM npc_state ns
         JOIN room_npcs rn ON ns.npc_instance_id = rn.id
         WHERE ns.current_room = ?
-      `).all(room) as any[];
+      `).all(currentRoom) as any[];
 
       for (const npcState of npcsInRoom) {
         // Calculate elapsed time since last player was nearby
@@ -258,6 +268,35 @@ class NPCLifeManager {
           SET is_active = 1, last_player_nearby = ?
           WHERE npc_instance_id = ?
         `).run(now.toISOString(), npcState.npc_instance_id);
+
+        // NPCs in the CURRENT room (not adjacent) may comment on the player's arrival
+        if (currentRoom === roomId) {
+          const npcTemplate = getNpcById(npcState.npc_template_id);
+          if (npcTemplate) {
+            const personality = getNpcPersonalityPrompt(npcState.npc_template_id);
+
+            // Generate and send NPC comment asynchronously
+            generateNpcRoomEntryComment(
+              npcState.npc_template_id,
+              npcTemplate.name,
+              personality,
+              playerId,
+              playerName,
+              roomName
+            ).then(comment => {
+              if (comment) {
+                // Send the comment to the player
+                connectionManager.sendToPlayer(playerId, {
+                  type: 'output',
+                  text: `\n${npcTemplate.name}: ${comment}`,
+                  messageType: 'chat',
+                });
+              }
+            }).catch(err => {
+              console.error(`[NPC Comment] Error for ${npcTemplate.name}:`, err);
+            });
+          }
+        }
       }
     }
   }

@@ -593,8 +593,8 @@ function enterGame(socket: net.Socket, conn: TelnetConnection): void {
     thirst: number;
   };
 
-  // Check if this is a new character (first login - no gold, at border)
-  const isNewCharacter = player.current_room === 'border_checkpoint' && player.gold === 0;
+  // Check if this is a new character (first login - no gold, in village square)
+  const isNewCharacter = player.current_room === 'village_square' && player.gold === 0;
 
   if (isNewCharacter) {
     // New player arrival sequence - atmospheric intro
@@ -603,17 +603,16 @@ function enterGame(socket: net.Socket, conn: TelnetConnection): void {
     sendLine(socket, '');
     sendLine(socket, `${colors.yellow}The journey has been long.${colors.reset}`);
     sendLine(socket, '');
-    sendLine(socket, `${colors.dim}Days, perhaps weeks of travel have brought you here, to the`);
-    sendLine(socket, `border of a land you\'ve heard whispered about in taverns and`);
-    sendLine(socket, `around dying campfires. Gamehenge. A realm under the shadow`);
-    sendLine(socket, `of a tyrant king named Wilson, where the Lizards live in fear`);
-    sendLine(socket, `and the Helping Friendly Book has been stolen away.${colors.reset}`);
+    sendLine(socket, `${colors.dim}Days, perhaps weeks of travel have brought you here, to`);
+    sendLine(socket, `Gamehenge - a realm under the shadow of a tyrant king named`);
+    sendLine(socket, `Wilson, where the Lizards live in fear and the Helping`);
+    sendLine(socket, `Friendly Book has been stolen away.${colors.reset}`);
     sendLine(socket, '');
-    sendLine(socket, `${colors.dim}You have nothing. Your purse is empty. Your last bread crust`);
-    sendLine(socket, `is hard as stone. Your waterskin is dry. The clothes on your`);
-    sendLine(socket, `back are threadbare and offer no protection.${colors.reset}`);
+    sendLine(socket, `${colors.dim}You stumble into the village square, dusty and exhausted.`);
+    sendLine(socket, `Your purse is empty. Your clothes are threadbare. You have`);
+    sendLine(socket, `nothing but the hope of a new beginning.${colors.reset}`);
     sendLine(socket, '');
-    sendLine(socket, `${colors.yellow}But you have arrived.${colors.reset}`);
+    sendLine(socket, `${colors.yellow}A bell rings. The Town Crier has noticed your arrival.${colors.reset}`);
     sendLine(socket, '');
     sendLine(socket, `${colors.dim}In Gamehenge, you must earn your place. Talk to the folk`);
     sendLine(socket, `you meet. Help them with their work. Build relationships.`);
