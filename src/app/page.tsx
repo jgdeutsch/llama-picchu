@@ -139,7 +139,29 @@ export default function Game() {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [waitingForSpace, setWaitingForSpace] = useState(false);
   const [pendingContent, setPendingContent] = useState<{text: string, type: OutputLine['type']}[]>([]);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-save game state to localStorage
+  useEffect(() => {
+    if (gameState && !isBooting) {
+      localStorage.setItem('llama-picchu-save', JSON.stringify(gameState));
+    }
+  }, [gameState, isBooting]);
+
+  // Load saved game on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('llama-picchu-save');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as GameState;
+        // We'll restore after boot sequence
+        sessionStorage.setItem('llama-picchu-pending-restore', saved);
+      } catch {
+        // Invalid save, ignore
+      }
+    }
+  }, []);
 
   // Get visible lines
   const visibleLines = outputBuffer.slice(
@@ -218,8 +240,21 @@ export default function Game() {
 
   // Handle boot -> game transition
   const startGame = useCallback(() => {
-    const initialState = createInitialState();
-    setGameState(initialState);
+    // Check for saved game
+    const pendingRestore = sessionStorage.getItem('llama-picchu-pending-restore');
+    let restoredState: GameState | null = null;
+
+    if (pendingRestore) {
+      try {
+        restoredState = JSON.parse(pendingRestore) as GameState;
+        sessionStorage.removeItem('llama-picchu-pending-restore');
+      } catch {
+        // Invalid save, ignore
+      }
+    }
+
+    const stateToUse = restoredState || createInitialState();
+    setGameState(stateToUse);
     setIsBooting(false);
 
     // Clear and show game
@@ -231,18 +266,40 @@ export default function Game() {
 
     // Queue all intro content
     setTimeout(() => {
-      addOutput(ASCII_ART.llama, 'ascii');
-      addOutput('', 'output');
-      addOutput(INTRO_TEXT, 'system');
-      addOutput('', 'output');
+      if (restoredState) {
+        // Restored game
+        addOutput('[ GAME RESTORED FROM AUTOSAVE ]', 'system');
+        addOutput('', 'output');
+        const room = restoredState.rooms[restoredState.player.location];
+        addOutput(room.name, 'output');
+        addOutput('─'.repeat(room.name.length), 'output');
+        addOutput(room.description, 'output');
+        addOutput('', 'output');
+        const items = Object.keys(room.items);
+        if (items.length > 0) {
+          addOutput(`You see: ${items.join(', ')}`, 'output');
+        }
+        const exitNames: Record<string, string> = {
+          n: 'north', s: 'south', e: 'east', w: 'west',
+          u: 'up', d: 'down'
+        };
+        const exits = Object.keys(room.exits).map(d => exitNames[d] || d);
+        addOutput(`Exits: ${exits.join(', ')}`, 'output');
+      } else {
+        // New game
+        addOutput(ASCII_ART.llama, 'ascii');
+        addOutput('', 'output');
+        addOutput(INTRO_TEXT, 'system');
+        addOutput('', 'output');
 
-      const room = initialState.rooms[initialState.player.location];
-      addOutput(room.name, 'output');
-      addOutput('─'.repeat(room.name.length), 'output');
-      addOutput(room.description, 'output');
-      addOutput('', 'output');
-      addOutput(`You see: ${Object.keys(room.items).join(', ')}`, 'output');
-      addOutput(`Exits: north, east, south, west`, 'output');
+        const room = stateToUse.rooms[stateToUse.player.location];
+        addOutput(room.name, 'output');
+        addOutput('─'.repeat(room.name.length), 'output');
+        addOutput(room.description, 'output');
+        addOutput('', 'output');
+        addOutput(`You see: ${Object.keys(room.items).join(', ')}`, 'output');
+        addOutput(`Exits: north, east, south, west`, 'output');
+      }
     }, 100);
   }, [addOutput]);
 
@@ -325,6 +382,36 @@ export default function Game() {
     // Show user input
     const prompt = gameState.questionGame.active ? '??>' : 'C:\\>';
     addOutput(`${prompt} ${userInput}`, 'input');
+
+    // Handle SAVE command
+    if (userInput.toLowerCase() === 'save') {
+      localStorage.setItem('llama-picchu-save', JSON.stringify(gameState));
+      addOutput('Game saved. Your progress is stored safely in the stones of time.', 'system');
+      return;
+    }
+
+    // Handle NEW command to start fresh
+    if (userInput.toLowerCase() === 'new' || userInput.toLowerCase() === 'restart') {
+      localStorage.removeItem('llama-picchu-save');
+      const freshState = createInitialState();
+      setGameState(freshState);
+      setOutputBuffer([]);
+      setVisibleStartIndex(0);
+      setTimeout(() => {
+        addOutput(ASCII_ART.llama, 'ascii');
+        addOutput('', 'output');
+        addOutput(INTRO_TEXT, 'system');
+        addOutput('', 'output');
+        const room = freshState.rooms[freshState.player.location];
+        addOutput(room.name, 'output');
+        addOutput('─'.repeat(room.name.length), 'output');
+        addOutput(room.description, 'output');
+        addOutput('', 'output');
+        addOutput(`You see: ${Object.keys(room.items).join(', ')}`, 'output');
+        addOutput(`Exits: north, east, south, west`, 'output');
+      }, 100);
+      return;
+    }
 
     // Process command
     const result = processCommand(gameState, userInput);
@@ -420,8 +507,8 @@ export default function Game() {
           {visibleLines.map((line) => (
             <div
               key={line.id}
-              className={`whitespace-pre leading-snug ${getLineColor(line.type)} ${
-                line.type === 'ascii' ? 'text-[10px] md:text-xs leading-none' : 'text-sm'
+              className={`leading-snug ${getLineColor(line.type)} ${
+                line.type === 'ascii' ? 'whitespace-pre text-[10px] md:text-xs leading-none' : 'text-sm whitespace-pre-wrap break-words'
               }`}
             >
               {line.text || '\u00A0'}

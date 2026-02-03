@@ -665,6 +665,8 @@ Actions:   look [thing]  - Look around or at something specific
 Special:   questions     - Start the Question Game
            flip          - Flip a coca leaf (when you have one)
            think         - Ponder your existence
+           save          - Save your game (auto-saves too!)
+           new           - Start a new game
            help          - Show this message
 
 Remember: You are a llama. Act accordingly.`,
