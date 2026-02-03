@@ -1,7 +1,8 @@
-// Movement Commands for Llama Picchu MUD
+// Movement Commands for FROBARK MUD
 import { connectionManager } from '../managers/connectionManager';
 import { worldManager } from '../managers/worldManager';
 import { questManager } from '../managers/questManager';
+import { npcLifeManager } from '../managers/npcLifeManager';
 import type { CommandContext } from './index';
 import type { Direction } from '../../shared/types/room';
 
@@ -20,6 +21,10 @@ export function processMovementCommand(ctx: CommandContext, direction: Direction
   // Update quest progress for exploration
   if (result.newRoomId) {
     questManager.updateProgress(ctx.playerId, 'explore', result.newRoomId, 1);
+
+    // Activate NPCs in the room - this triggers the "catch up" mechanic
+    // where NPCs simulate time passing since the last player visited
+    npcLifeManager.onPlayerEntersRoom(ctx.playerId, result.newRoomId);
   }
 
   // Send new room description

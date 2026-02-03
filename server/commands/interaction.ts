@@ -1,12 +1,22 @@
-// Interaction Commands for Llama Picchu MUD
+// Interaction Commands for FROBARK MUD
 import { connectionManager } from '../managers/connectionManager';
 import { worldManager } from '../managers/worldManager';
 import { playerManager } from '../managers/playerManager';
 import { npcManager } from '../managers/npcManager';
 import { questManager } from '../managers/questManager';
+import { npcLifeManager } from '../managers/npcLifeManager';
 import { getDatabase, playerQueries } from '../database';
 import { itemTemplates } from '../data/items';
-import { npcTemplates } from '../data/npcs';
+import { npcTemplates, getNpcPersonalityPrompt } from '../data/npcs';
+import {
+  generateNpcResponse,
+  addNpcMemory,
+  getNpcMemoriesOfPlayer,
+  getDaysSinceLastMeeting,
+  getTimeOfDay,
+  type ConversationContext,
+  type NpcMemoryEntry,
+} from '../services/geminiService';
 import type { CommandContext } from './index';
 
 export function processInteractionCommand(ctx: CommandContext, action: string): void {
@@ -27,7 +37,11 @@ export function processInteractionCommand(ctx: CommandContext, action: string): 
       processConsume(ctx, 'drink');
       break;
     case 'talk':
-      processTalk(ctx);
+      // processTalk is async but we don't need to wait for it
+      processTalk(ctx).catch(err => {
+        console.error('[Talk] Error:', err);
+        sendOutput(ctx.playerId, 'Something went wrong with the conversation.');
+      });
       break;
   }
 }
@@ -288,8 +302,9 @@ function processConsume(ctx: CommandContext, type: 'food' | 'drink'): void {
   });
 }
 
-function processTalk(ctx: CommandContext): void {
+async function processTalk(ctx: CommandContext): Promise<void> {
   // Parse: talk <npc> [message] or talk <npc> about <topic>
+  // This uses the Gemini LLM to generate dynamic, context-aware NPC dialogue
   const args = ctx.args;
 
   if (args.length === 0) {
@@ -346,55 +361,289 @@ function processTalk(ctx: CommandContext): void {
     return;
   }
 
-  // If no message provided, show greeting and relationship status
+  // Default message if none provided
   if (!message) {
-    // Use the conversation system to get a context-aware greeting
+    message = 'hello';
+  }
+
+  // Build the full conversation context for Gemini
+  const conversationContext = await buildConversationContext(
+    ctx.playerId,
+    ctx.playerName,
+    ctx.roomId,
+    npc.npcTemplateId,
+    template
+  );
+
+  // Show thinking indicator for longer conversations
+  sendOutput(ctx.playerId, `\n${template.name} considers your words...`);
+
+  try {
+    // Generate response using Gemini LLM
+    const response = await generateNpcResponse(conversationContext, message);
+
+    // Display the NPC's response
+    sendOutput(ctx.playerId, `\n${template.name} says, "${response}"\n`);
+
+    // Record this interaction in NPC memory
+    await recordInteraction(ctx.playerId, ctx.playerName, npc.npcTemplateId, message, response);
+
+    // Show relationship status hint occasionally
+    const db = getDatabase();
+    const socialCapital = db.prepare(`
+      SELECT capital, trust_level FROM social_capital
+      WHERE player_id = ? AND npc_id = ?
+    `).get(ctx.playerId, npc.npcTemplateId) as { capital: number; trust_level: string } | undefined;
+
+    if (socialCapital) {
+      const trustHint = getTrustHint(socialCapital.trust_level);
+      if (Math.random() < 0.3) { // 30% chance to show hint
+        sendOutput(ctx.playerId, `(${template.name} ${trustHint})`);
+      }
+    }
+
+    // Show available quests if friendly enough
+    const memory = npcManager.getMemory(template.id, ctx.playerId);
+    if (template.questIds && template.questIds.length > 0 && memory.disposition >= 30) {
+      const availableQuests = questManager.getAvailableQuests(npc.npcTemplateId, ctx.playerId);
+      if (availableQuests.length > 0 && message.toLowerCase().includes('quest')) {
+        const questList = availableQuests.map((q) => `  [${q.id}] ${q.name} (Level ${q.levelRequired})`).join('\n');
+        sendOutput(ctx.playerId, `\nAvailable quests:\n${questList}\nType "accept <quest id>" to accept a quest.`);
+      }
+    }
+
+  } catch (error) {
+    // Fall back to the old system if Gemini fails
+    console.error('[Talk] Gemini error, falling back:', error);
     const { response } = npcManager.processConversation(
       ctx.playerId,
       ctx.playerName,
       npc.id,
-      'hello'
+      message
     );
-
     sendOutput(ctx.playerId, `\n${response}\n`);
+  }
+}
 
-    // Show relationship hint
-    const memory = npcManager.getMemory(template.id, ctx.playerId);
-    if (memory.interaction_count > 3) {
-      const relationshipHint = npcManager.getDispositionDescription(memory.disposition);
-      sendOutput(ctx.playerId, `(${template.name} ${relationshipHint})`);
-    }
+// Build the full conversation context for Gemini from all available data sources
+async function buildConversationContext(
+  playerId: number,
+  playerName: string,
+  roomId: string,
+  npcTemplateId: number,
+  template: { name: string; type: string; role?: string }
+): Promise<ConversationContext> {
+  const db = getDatabase();
 
-    // Show available quests if any
-    if (template.questIds && template.questIds.length > 0 && memory.disposition >= 30) {
-      const availableQuests = questManager.getAvailableQuests(npc.npcTemplateId, ctx.playerId);
-      if (availableQuests.length > 0) {
-        const questList = availableQuests.map((q) => `  [${q.id}] ${q.name} (Level ${q.levelRequired})`).join('\n');
-        sendOutput(ctx.playerId, `\nAvailable quests:\n${questList}\nType "accept <quest id>" to accept a quest.`);
-      }
-    } else if (template.questIds && template.questIds.length > 0 && memory.disposition < 30) {
-      sendOutput(ctx.playerId, `\n(${template.name} might have quests, but doesn't seem willing to help you right now.)`);
-    }
+  // Get NPC personality from the npcs.ts definitions
+  const personality = getNpcPersonalityPrompt(npcTemplateId);
 
-    // Show conversation tips
-    sendOutput(ctx.playerId, '\n(Tip: You can say things like "talk elder hello", "talk elder about quests", or "talk elder thank you")');
-    return;
+  // Get NPC state (current task, mood, etc.)
+  const npcState = db.prepare(`
+    SELECT current_task, task_progress, energy, mood, current_room
+    FROM npc_state ns
+    JOIN room_npcs rn ON ns.npc_instance_id = rn.id
+    WHERE rn.npc_template_id = ?
+    LIMIT 1
+  `).get(npcTemplateId) as {
+    current_task: string | null;
+    task_progress: number;
+    energy: number;
+    mood: string;
+    current_room: string;
+  } | undefined;
+
+  // Get social capital between this player and NPC
+  const socialData = db.prepare(`
+    SELECT capital, trust_level, times_helped, times_wronged
+    FROM social_capital
+    WHERE player_id = ? AND npc_id = ?
+  `).get(playerId, npcTemplateId) as {
+    capital: number;
+    trust_level: string;
+    times_helped: number;
+    times_wronged: number;
+  } | undefined;
+
+  // Get NPC's memories of this player
+  const memories = getNpcMemoriesOfPlayer(npcTemplateId, playerId);
+
+  // Get days since last meeting
+  const daysSince = getDaysSinceLastMeeting(npcTemplateId, playerId);
+
+  // Get world context (what's happening nearby)
+  const worldContext = buildWorldContext(roomId, npcTemplateId);
+
+  // Get game time
+  const { hour } = npcLifeManager.getGameTime();
+  const timeOfDay = getTimeOfDay();
+
+  // Build the context object
+  const context: ConversationContext = {
+    npcId: npcTemplateId,
+    npcName: template.name,
+    npcPersonality: personality,
+    npcRole: template.role || template.type,
+    npcCurrentTask: npcState?.current_task || null,
+    npcTaskProgress: npcState?.task_progress || 0,
+    npcMood: npcState?.mood || 'neutral',
+    npcLocation: roomId,
+    playerName: playerName,
+    playerSocialCapital: socialData?.capital || 0,
+    trustLevel: socialData?.trust_level || 'stranger',
+    recentMemories: memories.recent,
+    longTermMemories: memories.longTerm,
+    worldContext: worldContext,
+    conversationHistory: [], // We could track this per-session if needed
+    timeOfDay: timeOfDay,
+    daysSinceLastMeeting: daysSince,
+  };
+
+  return context;
+}
+
+// Build a description of what's happening nearby for context
+function buildWorldContext(roomId: string, excludeNpcId: number): string {
+  const parts: string[] = [];
+
+  // Get other NPCs in the room
+  const npcsHere = npcManager.getNpcsInRoom(roomId);
+  const otherNpcs = npcsHere.filter(n => n.id !== excludeNpcId);
+
+  if (otherNpcs.length > 0) {
+    const npcNames = otherNpcs.slice(0, 3).map(n => n.name).join(', ');
+    parts.push(`Also nearby: ${npcNames}`);
   }
 
-  // Process the conversation with the message
-  const { response, dispositionChange } = npcManager.processConversation(
-    ctx.playerId,
-    ctx.playerName,
-    npc.id,
-    message
+  // Get players in the room
+  const playersHere = worldManager.getPlayersInRoom(roomId);
+  if (playersHere.length > 1) {
+    parts.push(`${playersHere.length} travelers are in the area`);
+  }
+
+  // Get activity descriptions from NPC life manager
+  const activityDesc = npcLifeManager.getNpcActivityDescription(roomId);
+  if (activityDesc) {
+    parts.push(activityDesc.trim());
+  }
+
+  // Add time-based context
+  const { hour } = npcLifeManager.getGameTime();
+  if (hour >= 6 && hour < 9) {
+    parts.push('The morning is young, people are starting their work');
+  } else if (hour >= 12 && hour < 14) {
+    parts.push('It\'s midday, many are taking a break');
+  } else if (hour >= 18 && hour < 21) {
+    parts.push('Evening has come, the day\'s work is winding down');
+  } else if (hour >= 21 || hour < 5) {
+    parts.push('It\'s late at night, most folk are asleep');
+  }
+
+  return parts.join('. ') || 'The area is quiet';
+}
+
+// Record an interaction in NPC memory for future conversations
+async function recordInteraction(
+  playerId: number,
+  playerName: string,
+  npcTemplateId: number,
+  playerMessage: string,
+  npcResponse: string
+): Promise<void> {
+  // Determine importance based on message content
+  let importance = 3; // Default medium importance
+
+  const lowerMessage = playerMessage.toLowerCase();
+
+  // Higher importance for emotional or significant interactions
+  if (lowerMessage.includes('thank') || lowerMessage.includes('grateful')) {
+    importance = 5;
+  } else if (lowerMessage.includes('help') || lowerMessage.includes('please')) {
+    importance = 4;
+  } else if (lowerMessage.includes('hate') || lowerMessage.includes('kill') || lowerMessage.includes('die')) {
+    importance = 7; // Threats are very memorable
+  } else if (lowerMessage.includes('love') || lowerMessage.includes('friend')) {
+    importance = 6;
+  } else if (lowerMessage.includes('hello') || lowerMessage.includes('hi')) {
+    importance = 2; // Greetings are less memorable
+  }
+
+  // Determine emotional valence
+  let emotionalValence = 0;
+  if (lowerMessage.includes('thank') || lowerMessage.includes('help') || lowerMessage.includes('please') || lowerMessage.includes('friend')) {
+    emotionalValence = 2;
+  } else if (lowerMessage.includes('hate') || lowerMessage.includes('stupid') || lowerMessage.includes('idiot')) {
+    emotionalValence = -3;
+  }
+
+  // Add memory of this interaction
+  const memoryContent = `${playerName} said: "${playerMessage.substring(0, 100)}"`;
+
+  addNpcMemory(
+    npcTemplateId,
+    playerId,
+    'interaction',
+    memoryContent,
+    importance,
+    emotionalValence
   );
 
-  sendOutput(ctx.playerId, `\n${response}\n`);
+  // Update social capital based on interaction tone
+  const db = getDatabase();
 
-  // Show disposition change feedback
-  if (dispositionChange > 0) {
-    sendOutput(ctx.playerId, `(${template.name}'s opinion of you improved)`);
-  } else if (dispositionChange < 0) {
-    sendOutput(ctx.playerId, `(${template.name}'s opinion of you worsened)`);
+  let capitalChange = 0;
+  if (emotionalValence > 0) {
+    capitalChange = emotionalValence * 2;
+  } else if (emotionalValence < 0) {
+    capitalChange = emotionalValence * 3; // Negative interactions hurt more
   }
+
+  if (capitalChange !== 0) {
+    db.prepare(`
+      INSERT INTO social_capital (player_id, npc_id, capital, last_interaction)
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT (player_id, npc_id) DO UPDATE SET
+        capital = MIN(100, MAX(-100, capital + ?)),
+        last_interaction = CURRENT_TIMESTAMP
+    `).run(playerId, npcTemplateId, capitalChange, capitalChange);
+
+    // Update trust level
+    const result = db.prepare(`
+      SELECT capital FROM social_capital WHERE player_id = ? AND npc_id = ?
+    `).get(playerId, npcTemplateId) as { capital: number } | undefined;
+
+    if (result) {
+      const trustLevel = capitalToTrustLevel(result.capital);
+      db.prepare(`
+        UPDATE social_capital SET trust_level = ? WHERE player_id = ? AND npc_id = ?
+      `).run(trustLevel, playerId, npcTemplateId);
+    }
+  }
+}
+
+// Convert capital to trust level string
+function capitalToTrustLevel(capital: number): string {
+  if (capital < -50) return 'hostile';
+  if (capital < -10) return 'unfriendly';
+  if (capital < 10) return 'stranger';
+  if (capital < 30) return 'acquaintance';
+  if (capital < 60) return 'friend';
+  if (capital < 90) return 'trusted';
+  return 'family';
+}
+
+// Get a human-readable hint about the trust level
+function getTrustHint(trustLevel: string): string {
+  const hints: Record<string, string[]> = {
+    hostile: ['glares at you with pure hatred', 'looks ready to attack', 'seethes with anger'],
+    unfriendly: ['seems cold and distant', 'eyes you suspiciously', 'is clearly unhappy to see you'],
+    stranger: ['regards you neutrally', 'treats you politely but cautiously', 'is neither warm nor cold'],
+    acquaintance: ['seems to recognize you fondly', 'greets you with a small smile', 'appears comfortable around you'],
+    friend: ['lights up when they see you', 'treats you warmly', 'clearly enjoys your company'],
+    trusted: ['embraces you like family', 'shares secrets freely', 'trusts you completely'],
+    family: ['considers you part of their life', 'would do anything for you', 'loves you dearly'],
+  };
+
+  const options = hints[trustLevel] || hints.stranger;
+  return options[Math.floor(Math.random() * options.length)];
 }

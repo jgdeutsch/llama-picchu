@@ -1,6 +1,6 @@
-// Telnet Server for Llama Picchu MUD
-// Players can connect from anywhere using: telnet yourserver.com 4000
-// Or: nc yourserver.com 4000
+// Telnet Server for FROBARK MUD
+// A living world set in Phish's Gamehenge universe
+// Players can connect from anywhere using: telnet frobark.com 4000
 
 import * as net from 'net';
 import { initializeDatabase, getDatabase, accountQueries, playerQueries, equipmentQueries } from './database';
@@ -106,21 +106,28 @@ function broadcast(text: string, exceptPlayerId?: number): void {
 
 const TITLE_SCREEN = `
 ${colors.brightYellow}${colors.bold}
-    ██╗     ██╗      █████╗ ███╗   ███╗ █████╗
-    ██║     ██║     ██╔══██╗████╗ ████║██╔══██╗
-    ██║     ██║     ███████║██╔████╔██║███████║
-    ██║     ██║     ██╔══██║██║╚██╔╝██║██╔══██║
-    ███████╗███████╗██║  ██║██║ ╚═╝ ██║██║  ██║
-    ╚══════╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝
+    ███████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██╗  ██╗
+    ██╔════╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝
+    █████╗  ██████╔╝██║   ██║██████╔╝███████║██████╔╝█████╔╝
+    ██╔══╝  ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔═██╗
+    ██║     ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██╗
+    ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝
 ${colors.reset}
-${colors.yellow}    ╔═══════════════════════════════════════════════╗
-    ║            PICCHU MUD                         ║
-    ║      Multi-User Dungeon Adventure             ║
-    ║                                               ║
-    ║   A DikuMUD-style adventure set in the        ║
-    ║   ancient Incan citadel of Machu Picchu.      ║
-    ║   Play as a llama and explore the mysteries!  ║
-    ╚═══════════════════════════════════════════════╝${colors.reset}
+${colors.cyan}    ╔═══════════════════════════════════════════════════════╗
+    ║                   GAMEHENGE                           ║
+    ║         A Living World Awaits You                     ║
+    ║                                                       ║
+    ║   The Lizards toil under Wilson's cruel reign.        ║
+    ║   Icculus watches from his tower. Tela plots          ║
+    ║   revolution in the shadows. The Helping Friendly     ║
+    ║   Book holds secrets that could change everything.    ║
+    ║                                                       ║
+    ║   You arrive with nothing. Earn your place through    ║
+    ║   work, relationships, and deeds. The NPCs here       ║
+    ║   live their own lives - help them, and they'll       ║
+    ║   remember. Wrong them, and they'll remember that     ║
+    ║   too.                                                ║
+    ╚═══════════════════════════════════════════════════════╝${colors.reset}
 
 `;
 
@@ -180,7 +187,7 @@ function handleData(socket: net.Socket, data: Buffer): void {
 
   // Remove telnet IAC sequences
   input = input.replace(/\xff[\xfb-\xfe]./g, '');
-  input = input.replace(/\xff\xf[0-9a-f]/g, '');
+  input = input.replace(/\xff[\xf0-\xff]/g, '');
 
   // Add to buffer
   conn.inputBuffer += input;
@@ -371,15 +378,16 @@ function startCharacterCreation(socket: net.Socket, conn: TelnetConnection): voi
   conn.createState = { step: 'class' };
 
   sendLine(socket, '\r\n--- Create Your Character ---', colors.brightYellow);
-  sendLine(socket, '\r\nChoose your class:\r\n', colors.white);
+  sendLine(socket, `${colors.dim}You are a traveler who has stumbled into Gamehenge...${colors.reset}`, colors.white);
+  sendLine(socket, '\r\nWhat was your trade before arriving?\r\n', colors.white);
 
   const classes = [
-    { id: 1, name: 'Sun Priest', role: 'Healer/Buffer', desc: 'Channel divine light to heal allies and smite enemies' },
-    { id: 2, name: 'Shadow Stalker', role: 'Rogue/Stealth', desc: 'Strike from darkness with devastating precision' },
-    { id: 3, name: 'Condor Warrior', role: 'Tank/Fighter', desc: 'Lead charges and protect allies with powerful presence' },
-    { id: 4, name: 'Earth Shaman', role: 'Druid/Nature', desc: 'Commune with nature for defense and healing' },
-    { id: 5, name: 'Wind Runner', role: 'Speed/DPS', desc: 'Strike with blinding speed before enemies can react' },
-    { id: 6, name: 'Spirit Caller', role: 'Mage/Summoner', desc: 'Summon ancestral spirits for arcane might' },
+    { id: 1, name: 'Wandering Healer', role: 'Healer/Support', desc: 'Tend the sick and wounded, earn trust through compassion' },
+    { id: 2, name: 'Traveling Merchant', role: 'Trader/Diplomat', desc: 'Silver tongue and sharp eye for opportunity' },
+    { id: 3, name: 'Farmhand', role: 'Laborer/Crafter', desc: 'Strong back, honest work - the Lizards will respect you' },
+    { id: 4, name: 'Forest Wanderer', role: 'Scout/Forager', desc: 'Know the wild places, find what others miss' },
+    { id: 5, name: 'Runaway Scholar', role: 'Lore/Knowledge', desc: 'Books and mysteries call to you - Icculus may take note' },
+    { id: 6, name: 'Drifter', role: 'Versatile/Survivor', desc: 'No particular skills, but adaptable and resourceful' },
   ];
 
   classes.forEach((cls, i) => {
@@ -513,10 +521,57 @@ function enterGame(socket: net.Socket, conn: TelnetConnection): void {
   playerSockets.set(conn.playerId!, socket);
 
   const db = getDatabase();
-  const player = playerQueries.findById(db).get(conn.playerId!) as { current_room: string };
+  const player = playerQueries.findById(db).get(conn.playerId!) as {
+    current_room: string;
+    gold: number;
+    hunger: number;
+    thirst: number;
+  };
 
-  sendLine(socket, `\r\n${colors.brightGreen}Welcome to Llama Picchu MUD, ${conn.playerName}!${colors.reset}`);
-  sendLine(socket, `${colors.dim}Type "help" for a list of commands.${colors.reset}\r\n`);
+  // Check if this is a new character (first login - no gold, at border)
+  const isNewCharacter = player.current_room === 'border_checkpoint' && player.gold === 0;
+
+  if (isNewCharacter) {
+    // New player arrival sequence - atmospheric intro
+    sendLine(socket, '');
+    sendLine(socket, `${colors.dim}═════════════════════════════════════════════════════════${colors.reset}`);
+    sendLine(socket, '');
+    sendLine(socket, `${colors.yellow}The journey has been long.${colors.reset}`);
+    sendLine(socket, '');
+    sendLine(socket, `${colors.dim}Days, perhaps weeks of travel have brought you here, to the`);
+    sendLine(socket, `border of a land you\'ve heard whispered about in taverns and`);
+    sendLine(socket, `around dying campfires. Gamehenge. A realm under the shadow`);
+    sendLine(socket, `of a tyrant king named Wilson, where the Lizards live in fear`);
+    sendLine(socket, `and the Helping Friendly Book has been stolen away.${colors.reset}`);
+    sendLine(socket, '');
+    sendLine(socket, `${colors.dim}You have nothing. Your purse is empty. Your last bread crust`);
+    sendLine(socket, `is hard as stone. Your waterskin is dry. The clothes on your`);
+    sendLine(socket, `back are threadbare and offer no protection.${colors.reset}`);
+    sendLine(socket, '');
+    sendLine(socket, `${colors.yellow}But you have arrived.${colors.reset}`);
+    sendLine(socket, '');
+    sendLine(socket, `${colors.dim}In Gamehenge, you must earn your place. Talk to the folk`);
+    sendLine(socket, `you meet. Help them with their work. Build relationships.`);
+    sendLine(socket, `In time, you may find gold, shelter, perhaps even a purpose.${colors.reset}`);
+    sendLine(socket, '');
+    sendLine(socket, `${colors.dim}═════════════════════════════════════════════════════════${colors.reset}`);
+    sendLine(socket, '');
+    sendLine(socket, `${colors.brightGreen}Welcome to Gamehenge, ${conn.playerName}.${colors.reset}`);
+    sendLine(socket, `${colors.dim}Type "help" for commands. "look" to see where you are.${colors.reset}`);
+    sendLine(socket, '');
+  } else {
+    // Returning player
+    sendLine(socket, `\r\n${colors.brightGreen}Welcome back to Gamehenge, ${conn.playerName}.${colors.reset}`);
+
+    // Show vitals status if low
+    if (player.hunger < 30) {
+      sendLine(socket, `${colors.yellow}Your stomach growls insistently. You need food.${colors.reset}`);
+    }
+    if (player.thirst < 30) {
+      sendLine(socket, `${colors.yellow}Your throat is parched. You need water.${colors.reset}`);
+    }
+    sendLine(socket, '');
+  }
 
   // Show room
   const roomDesc = worldManager.getRoomDescription(player.current_room, conn.playerId!);
@@ -532,7 +587,7 @@ function enterGame(socket: net.Socket, conn: TelnetConnection): void {
 
   sendPrompt(socket);
 
-  console.log(`Player ${conn.playerName} entered the game from ${socket.remoteAddress}`);
+  console.log(`[FROBARK] ${conn.playerName} entered Gamehenge from ${socket.remoteAddress}`);
 }
 
 // Handle game commands
@@ -618,7 +673,7 @@ function handleLogout(socket: net.Socket, conn: TelnetConnection): void {
     }
 
     playerSockets.delete(conn.playerId);
-    console.log(`Player ${conn.playerName} logged out`);
+    console.log(`[FROBARK] ${conn.playerName} left Gamehenge`);
   }
 
   conn.playerId = null;
@@ -648,7 +703,7 @@ function handleDisconnect(socket: net.Socket): void {
     }
 
     playerSockets.delete(conn.playerId);
-    console.log(`Player ${conn.playerName} disconnected`);
+    console.log(`[FROBARK] ${conn.playerName} disconnected`);
   }
 
   connections.delete(socket);
@@ -670,7 +725,7 @@ function checkIdleConnections(): void {
 
 // Main startup
 async function main(): Promise<void> {
-  console.log('Initializing Llama Picchu MUD Telnet Server...');
+  console.log('Initializing FROBARK - Gamehenge MUD Server...');
 
   // Initialize database
   initializeDatabase();
@@ -692,17 +747,21 @@ async function main(): Promise<void> {
 
   server.listen(TELNET_PORT, '0.0.0.0', () => {
     console.log(`
-╔═══════════════════════════════════════════════════════════════╗
-║                                                               ║
-║       🦙 LLAMA PICCHU MUD - TELNET SERVER 🦙                  ║
-║                                                               ║
-║   Players can connect using:                                  ║
-║     telnet ${getPublicIP()} ${TELNET_PORT}
-║     nc ${getPublicIP()} ${TELNET_PORT}
-║                                                               ║
-║   Listening on port ${TELNET_PORT}                                       ║
-║                                                               ║
-╚═══════════════════════════════════════════════════════════════╝
+╔═══════════════════════════════════════════════════════════════════╗
+║                                                                   ║
+║     ███████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██╗  ██╗     ║
+║     ██╔════╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝     ║
+║     █████╗  ██████╔╝██║   ██║██████╔╝███████║██████╔╝█████╔╝      ║
+║     ██╔══╝  ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔═██╗      ║
+║     ██║     ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██╗     ║
+║     ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝     ║
+║                                                                   ║
+║              GAMEHENGE - A Living World Awaits                    ║
+║                                                                   ║
+║   Connect: telnet frobark.com ${TELNET_PORT}                                  ║
+║   Port: ${TELNET_PORT}                                                        ║
+║                                                                   ║
+╚═══════════════════════════════════════════════════════════════════╝
     `);
   });
 

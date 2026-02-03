@@ -1,7 +1,8 @@
 {
-  "name": "llama-picchu-web",
-  "version": "0.2.0",
+  "name": "frobark",
+  "version": "1.0.0",
   "private": true,
+  "description": "FROBARK - A living world MUD set in Phish's Gamehenge universe",
   "scripts": {
     "dev": "tsx server/index.ts",
     "dev:next": "next dev",
@@ -13,28 +14,30 @@
     "play": "tsx scripts/terminal-client.ts",
     "terminal": "tsx scripts/terminal-client.ts",
     "telnet": "tsx server/telnet.ts",
-    "mud": "tsx server/telnet.ts"
+    "mud": "tsx server/telnet.ts",
+    "frobark": "tsx server/telnet.ts"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "bcrypt": "^5.1.1",
+    "better-sqlite3": "^11.0.0",
+    "jsonwebtoken": "^9.0.2",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "better-sqlite3": "^11.0.0",
-    "ws": "^8.18.0",
-    "bcrypt": "^5.1.1",
-    "jsonwebtoken": "^9.0.2",
-    "uuid": "^10.0.0"
+    "uuid": "^10.0.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/bcrypt": "^5.0.2",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/better-sqlite3": "^7.6.11",
-    "@types/ws": "^8.5.12",
-    "@types/bcrypt": "^5.0.2",
-    "@types/jsonwebtoken": "^9.0.6",
     "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.5.12",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",

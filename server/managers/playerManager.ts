@@ -128,6 +128,23 @@ class PlayerManager {
         // Skills will be added when skill data is loaded
       }
 
+      // FROBARK: Give starter items - you arrive with almost nothing
+      // Just the clothes on your back and your last bit of food
+      const starterItems = [
+        { itemId: 200, quantity: 1 }, // Worn Traveler's Tunic
+        { itemId: 201, quantity: 1 }, // Tattered Traveling Boots
+        { itemId: 202, quantity: 1 }, // Empty Waterskin
+        { itemId: 203, quantity: 1 }, // Stale Bread Crust (one meal)
+      ];
+
+      for (const item of starterItems) {
+        try {
+          inventoryQueries.addItem(db).run(playerId, item.itemId, item.quantity);
+        } catch (err) {
+          console.log(`[PlayerManager] Could not add starter item ${item.itemId}:`, err);
+        }
+      }
+
       return { success: true, playerId };
     } catch (error) {
       console.error('Error creating character:', error);

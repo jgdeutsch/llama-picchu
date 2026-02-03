@@ -13,7 +13,9 @@ export type ItemType =
   | 'material'
   | 'quest'
   | 'container'
-  | 'key';
+  | 'key'
+  | 'currency'
+  | 'tool';
 
 export type WeaponType =
   | 'hoof'      // Unarmed-style
@@ -62,6 +64,15 @@ export interface ConsumableEffect {
   buffStat?: keyof PlayerStats;
 }
 
+// Tool types for the crafting/resource system
+export type ToolType =
+  | 'shovel'    // For digging
+  | 'axe'       // For chopping wood
+  | 'pickaxe'   // For mining
+  | 'hoe'       // For farming
+  | 'hammer'    // For building
+  | 'fishing';  // For fishing
+
 export interface ItemTemplate {
   id: number;
   name: string;
@@ -71,6 +82,7 @@ export interface ItemTemplate {
   slot?: EquipmentSlot;
   weaponType?: WeaponType;
   armorType?: ArmorType;
+  toolType?: ToolType;    // For tool items
   weaponStats?: WeaponStats;
   armorStats?: ArmorStats;
   statBonuses?: ItemStats;

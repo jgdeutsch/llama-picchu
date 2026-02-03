@@ -1,9 +1,14 @@
-// Game Loop for Llama Picchu MUD
+// Game Loop for FROBARK MUD
+// The game loop is the heartbeat of the world. Every tick, we process combat,
+// regeneration, NPC behaviors, and the living world simulation.
 import { getDatabase, roomNpcQueries, playerQueries } from './database';
 import { connectionManager } from './managers/connectionManager';
 import { worldManager } from './managers/worldManager';
 import { combatManager } from './managers/combatManager';
 import { npcManager } from './managers/npcManager';
+import { npcLifeManager } from './managers/npcLifeManager';
+import { economyManager } from './managers/economyManager';
+import { npcSocialManager } from './managers/npcSocialManager';
 import {
   TICK_RATE_MS,
   COMBAT_TICK_MS,
@@ -13,6 +18,15 @@ import {
   SAVE_TICK_MS,
 } from '../shared/types';
 
+// NPC Life tick - how often the living world simulation updates
+const NPC_LIFE_TICK_MS = 10000; // Every 10 seconds
+// Economy tick - how often work sessions progress
+const ECONOMY_TICK_MS = 5000; // Every 5 seconds
+// NPC Social tick - gossip, relationships, journals
+const NPC_SOCIAL_TICK_MS = 60000; // Every 60 seconds
+// Journal writing tick - once per game day (24 real minutes)
+const JOURNAL_TICK_MS = 1440000; // Every 24 minutes = 1 game day
+
 class GameLoop {
   private running = false;
   private lastTick = 0;
@@ -20,6 +34,10 @@ class GameLoop {
   private lastRegenTick = 0;
   private lastHungerTick = 0;
   private lastNpcTick = 0;
+  private lastNpcLifeTick = 0; // Living world simulation
+  private lastEconomyTick = 0; // Jobs and work sessions
+  private lastNpcSocialTick = 0; // NPC-to-NPC gossip and relationships
+  private lastJournalTick = 0; // NPCs write in journals
   private lastSaveTick = 0;
   private tickCount = 0;
 
@@ -32,9 +50,23 @@ class GameLoop {
     this.lastRegenTick = Date.now();
     this.lastHungerTick = Date.now();
     this.lastNpcTick = Date.now();
+    this.lastNpcLifeTick = Date.now();
+    this.lastEconomyTick = Date.now();
     this.lastSaveTick = Date.now();
 
-    console.log('Game loop started');
+    // Initialize the living world - set up NPC states and schedules
+    console.log('[GameLoop] Initializing NPC life simulation...');
+    npcLifeManager.initializeNpcStates();
+
+    // Initialize the economy - seed jobs
+    console.log('[GameLoop] Initializing economy...');
+    economyManager.initialize();
+
+    // Initialize NPC relationships
+    console.log('[GameLoop] Initializing NPC social relationships...');
+    npcSocialManager.initializeRelationships();
+
+    console.log('[GameLoop] FROBARK game loop started');
     this.tick();
   }
 
@@ -67,16 +99,41 @@ class GameLoop {
       this.lastHungerTick = now;
     }
 
-    // NPC AI tick (every 5 seconds)
+    // NPC AI tick (every 5 seconds) - legacy system for combat/aggro
     if (now - this.lastNpcTick >= NPC_AI_TICK_MS) {
       this.processNpcAi();
       this.lastNpcTick = now;
+    }
+
+    // NPC Life tick (every 10 seconds) - living world simulation
+    // This handles NPC schedules, tasks, movement, and spontaneous chatter
+    if (now - this.lastNpcLifeTick >= NPC_LIFE_TICK_MS) {
+      this.processNpcLife();
+      this.lastNpcLifeTick = now;
+    }
+
+    // Economy tick (every 5 seconds) - process work sessions
+    if (now - this.lastEconomyTick >= ECONOMY_TICK_MS) {
+      this.processEconomy();
+      this.lastEconomyTick = now;
     }
 
     // Auto-save tick (every minute)
     if (now - this.lastSaveTick >= SAVE_TICK_MS) {
       this.processAutoSave();
       this.lastSaveTick = now;
+    }
+
+    // NPC Social tick (every 60 seconds) - gossip between NPCs
+    if (now - this.lastNpcSocialTick >= NPC_SOCIAL_TICK_MS) {
+      this.processNpcSocial();
+      this.lastNpcSocialTick = now;
+    }
+
+    // Journal tick (every game day) - NPCs write in their journals
+    if (now - this.lastJournalTick >= JOURNAL_TICK_MS) {
+      this.processNpcJournals();
+      this.lastJournalTick = now;
     }
 
     // Process respawns every tick
@@ -267,6 +324,43 @@ class GameLoop {
       npcManager.processAi();
     } catch (error) {
       console.error('Error processing NPC AI:', error);
+    }
+  }
+
+  // Process the living world simulation - NPC schedules, tasks, and behavior
+  private processNpcLife(): void {
+    try {
+      npcLifeManager.tick();
+    } catch (error) {
+      console.error('[GameLoop] Error processing NPC life:', error);
+    }
+  }
+
+  // Process economy - work sessions progress here
+  private processEconomy(): void {
+    try {
+      economyManager.tick();
+    } catch (error) {
+      console.error('[GameLoop] Error processing economy:', error);
+    }
+  }
+
+  // Process NPC social interactions - gossip spreads between NPCs
+  private processNpcSocial(): void {
+    try {
+      npcSocialManager.processGossipTick();
+    } catch (error) {
+      console.error('[GameLoop] Error processing NPC social:', error);
+    }
+  }
+
+  // Process NPC journals - NPCs write about their day
+  private processNpcJournals(): void {
+    try {
+      npcSocialManager.writeEndOfDayJournals();
+      console.log('[GameLoop] NPCs wrote in their journals');
+    } catch (error) {
+      console.error('[GameLoop] Error processing NPC journals:', error);
     }
   }
 

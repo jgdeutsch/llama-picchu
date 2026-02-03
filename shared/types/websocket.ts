@@ -43,6 +43,7 @@ export type OutputType =
   | 'whisper'
   | 'emote'
   | 'error'
+  | 'movement'
   | 'room_title'
   | 'room_desc'
   | 'room_exits'
