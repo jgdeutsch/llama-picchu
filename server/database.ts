@@ -884,7 +884,18 @@ export const roomItemQueries = {
 // Room NPC queries
 export const roomNpcQueries = {
   getByRoom: (db: Database.Database) =>
-    db.prepare(`SELECT * FROM room_npcs WHERE room_id = ? AND respawn_at IS NULL`),
+    db.prepare(`
+      SELECT
+        id,
+        room_id as roomId,
+        npc_template_id as npcTemplateId,
+        hp_current as currentHp,
+        mana_current as currentMana,
+        combat_target as combatTarget,
+        respawn_at as respawnAt
+      FROM room_npcs
+      WHERE room_id = ? AND respawn_at IS NULL
+    `),
 
   spawn: (db: Database.Database) =>
     db.prepare(`
