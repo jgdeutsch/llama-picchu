@@ -8,118 +8,105 @@ import {
   getFallbackResponse,
 } from '@/lib/gameEngine';
 
+// Simpler boot screen that fits
+const BOOT_SCREEN = `
+
+    ██╗     ██╗      █████╗ ███╗   ███╗ █████╗
+    ██║     ██║     ██╔══██╗████╗ ████║██╔══██╗
+    ██║     ██║     ███████║██╔████╔██║███████║
+    ██║     ██║     ██╔══██║██║╚██╔╝██║██╔══██║
+    ███████╗███████╗██║  ██║██║ ╚═╝ ██║██║  ██║
+    ╚══════╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝
+
+              ═══════════════════════════
+               A Text Adventure in the
+              Style of Rosencrantz and
+                Guildenstern Are Dead
+              ═══════════════════════════
+
+                  INCAN ERA - 1450 CE
+
+    SYSTEM READY...
+    LOADING CONSCIOUSNESS...
+    WOOL DENSITY: OPTIMAL
+    PHILOSOPHICAL CAPACITY: MAXIMUM
+
+`;
+
 // ASCII Art for achievements
 const ASCII_ART = {
   llama: `
-                       @@@@
-                      @@  @@
-                     @@    @@
-                    @@  @@  @@
-                    @@ @@@@ @@
-                     @@    @@
-                      @@@@@@
-                         @
-                @@@@@@@@@@@@@@@@@
-              @@                 @@
-             @@    @@@@@@@@@@     @@
-            @@   @@          @@    @@
-           @@   @@            @@   @@
-          @@   @@              @@   @@
-          @@  @@                @@  @@
-          @@ @@                  @@ @@
-          @@@@                    @@@@
+                  @@@@
+                 @@  @@
+                @@    @@
+               @@  @@  @@
+               @@ @@@@ @@
+                @@    @@
+                 @@@@@@
+                    @
+           @@@@@@@@@@@@@@@@@
+         @@                 @@
+        @@    @@@@@@@@@@     @@
+       @@   @@          @@    @@
+      @@   @@            @@   @@
+     @@   @@              @@   @@
+     @@  @@                @@  @@
+     @@ @@                  @@ @@
+     @@@@                    @@@@
 `,
   goldenLlama: `
-  ╔═════════════════════════════════════════════════════╗
-  ║                                                     ║
-  ║       *  . *       *    .  *   *   .    *  *       ║
-  ║    .    *    ████████    *    .       *     .      ║
-  ║ *    .      ██ ░░░░ ██      *    *  .    *         ║
-  ║   *   .    ██ ░▓▓▓▓░ ██   .    *      .            ║
-  ║.    *     ██ ░▓████▓░ ██    .     *    .   *       ║
-  ║  .   *    ██ ░▓▓▓▓░ ██   *    .     *              ║
-  ║*    .      ████████████     .   *      .    *      ║
-  ║   *   .       ██  ██     *    .    *      .        ║
-  ║ .    *  ██████████████████    *     .   *          ║
-  ║   *   ██                  ██    .    *     .       ║
-  ║.     ██  ████████████████  ██     *    .    *      ║
-  ║  *  ██  ██              ██  ██  .     *            ║
-  ║.   ██  ██                ██  ██    .     *   .     ║
-  ║   ████                    ████   *    .    *       ║
-  ║                                                     ║
-  ║          ★ THE GOLDEN LLAMA OF LEGEND ★            ║
-  ║                                                     ║
-  ╚═════════════════════════════════════════════════════╝
+╔═══════════════════════════════════════════════╗
+║                                               ║
+║     *  . *       *    .  *   *   .    *      ║
+║  .    *    ████████    *    .       *        ║
+║*    .      ██ ░░░░ ██      *    *  .         ║
+║  *   .    ██ ░▓▓▓▓░ ██   .    *              ║
+║.    *     ██ ░▓████▓░ ██    .     *    .     ║
+║  .   *    ██ ░▓▓▓▓░ ██   *    .              ║
+║*    .      ████████████     .   *      .     ║
+║   *   .       ██  ██     *    .    *         ║
+║ .    *  ██████████████████    *     .        ║
+║   *   ██                  ██    .    *       ║
+║.     ██  ████████████████  ██     *    .     ║
+║  *  ██  ██              ██  ██  .            ║
+║.   ██  ██                ██  ██    .     *   ║
+║   ████                    ████   *    .      ║
+║                                               ║
+║        ★ THE GOLDEN LLAMA OF LEGEND ★        ║
+║                                               ║
+╚═══════════════════════════════════════════════╝
 `,
   questionWin: `
-  ╭───────────────────────────────────────╮
-  │     ___                               │
-  │    /   \\    MASTER OF QUESTIONS!     │
-  │   | ? ? |                             │
-  │    \\___/    You have defeated the    │
-  │      │      philosophical alpaca!     │
-  │   ╭──┴──╮                             │
-  │   │ ??? │   The ancient art of        │
-  │   ╰─────╯   rhetorical combat         │
-  │             is yours.                 │
-  ╰───────────────────────────────────────╯
+╭─────────────────────────────────────╮
+│     ___                             │
+│    /   \\    MASTER OF QUESTIONS!   │
+│   | ? ? |                           │
+│    \\___/    You have defeated the  │
+│      │      philosophical alpaca!   │
+│   ╭──┴──╮                           │
+│   │ ??? │   The ancient art of      │
+│   ╰─────╯   rhetorical combat       │
+│             is yours.               │
+╰─────────────────────────────────────╯
 `,
   secretDoor: `
-  ┌───────────────────────────────────────┐
-  │  ╔═════════════════════════════════╗  │
-  │  ║ ███████████████████████████████ ║  │
-  │  ║ █                             █ ║  │
-  │  ║ █   ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄   █ ║  │
-  │  ║ █   █ THE DOOR OPENS...   █   █ ║  │
-  │  ║ █   █                     █   █ ║  │
-  │  ║ █   █  A passage reveals  █   █ ║  │
-  │  ║ █   █  itself to the east █   █ ║  │
-  │  ║ █   █                     █   █ ║  │
-  │  ║ █   ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀   █ ║  │
-  │  ║ █                             █ ║  │
-  │  ║ ███████████████████████████████ ║  │
-  │  ╚═════════════════════════════════╝  │
-  └───────────────────────────────────────┘
-`,
-  boot: `
-╔════════════════════════════════════════════════════════════════════╗
-║                                                                    ║
-║   ██╗     ██╗      █████╗ ███╗   ███╗ █████╗       ██████╗  ██████╗║
-║   ██║     ██║     ██╔══██╗████╗ ████║██╔══██╗     ██╔═══██╗██╔════╝║
-║   ██║     ██║     ███████║██╔████╔██║███████║     ██║   ██║╚█████╗ ║
-║   ██║     ██║     ██╔══██║██║╚██╔╝██║██╔══██║     ██║   ██║ ╚═══██╗║
-║   ███████╗███████╗██║  ██║██║ ╚═╝ ██║██║  ██║     ╚██████╔╝██████╔╝║
-║   ╚══════╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝      ╚═════╝ ╚═════╝ ║
-║                                                                    ║
-║            ███╗   ███╗ █████╗  ██████╗██╗  ██╗██╗   ██╗            ║
-║            ████╗ ████║██╔══██╗██╔════╝██║  ██║██║   ██║            ║
-║            ██╔████╔██║███████║██║     ███████║██║   ██║            ║
-║            ██║╚██╔╝██║██╔══██║██║     ██╔══██║██║   ██║            ║
-║            ██║ ╚═╝ ██║██║  ██║╚██████╗██║  ██║╚██████╔╝            ║
-║            ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝             ║
-║                                                                    ║
-║               ██████╗ ██╗ ██████╗ ██████╗██╗  ██╗██╗   ██╗         ║
-║               ██╔══██╗██║██╔════╝██╔════╝██║  ██║██║   ██║         ║
-║               ██████╔╝██║██║     ██║     ███████║██║   ██║         ║
-║               ██╔═══╝ ██║██║     ██║     ██╔══██║██║   ██║         ║
-║               ██║     ██║╚██████╗╚██████╗██║  ██║╚██████╔╝         ║
-║               ╚═╝     ╚═╝ ╚═════╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝          ║
-║                                                                    ║
-║   ═══════════════════════════════════════════════════════════════  ║
-║               A Text Adventure in Uncertain Times                  ║
-║                       INCAN ERA - 1450 CE                          ║
-║   ═══════════════════════════════════════════════════════════════  ║
-║                                                                    ║
-║   SYSTEM READY...                                                  ║
-║   LOADING CONSCIOUSNESS...                                         ║
-║   WOOL DENSITY: OPTIMAL                                            ║
-║   PHILOSOPHICAL CAPACITY: MAXIMUM                                  ║
-║                                                                    ║
-╚════════════════════════════════════════════════════════════════════╝
+┌─────────────────────────────────────┐
+│  ╔═══════════════════════════════╗  │
+│  ║ █████████████████████████████ ║  │
+│  ║ █                           █ ║  │
+│  ║ █   ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄   █ ║  │
+│  ║ █   █ THE DOOR OPENS... █   █ ║  │
+│  ║ █   █                   █   █ ║  │
+│  ║ █   █  A passage east   █   █ ║  │
+│  ║ █   █                   █   █ ║  │
+│  ║ █   ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀   █ ║  │
+│  ║ █                           █ ║  │
+│  ║ █████████████████████████████ ║  │
+│  ╚═══════════════════════════════╝  │
+└─────────────────────────────────────┘
 `,
 };
 
-// Shorter intro that fits on screen
 const INTRO_TEXT = `You are a llama.
 
 This is, perhaps, the only thing you know for certain.
@@ -130,16 +117,15 @@ The year is the Incan era. The sun is worshipped, the
 stones are precisely cut, and you're standing in what
 will one day be a major tourist attraction.
 
-Type HELP for commands. Press ↑/↓ to scroll history.`;
+Type HELP for commands.`;
 
 interface OutputLine {
   id: number;
-  type: 'system' | 'input' | 'output' | 'error' | 'ascii' | 'more';
+  type: 'system' | 'input' | 'output' | 'error' | 'ascii';
   text: string;
 }
 
-// Calculate how many lines fit on screen
-const LINES_PER_PAGE = 18;
+const LINES_PER_PAGE = 20;
 
 export default function Game() {
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -151,18 +137,17 @@ export default function Game() {
   const [isBooting, setIsBooting] = useState(true);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [pendingPages, setPendingPages] = useState<string[]>([]);
-  const [waitingForMore, setWaitingForMore] = useState(false);
+  const [waitingForSpace, setWaitingForSpace] = useState(false);
+  const [pendingContent, setPendingContent] = useState<{text: string, type: OutputLine['type']}[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Get visible lines based on current scroll position
+  // Get visible lines
   const visibleLines = outputBuffer.slice(
     Math.max(0, visibleStartIndex),
     visibleStartIndex + LINES_PER_PAGE
   );
 
-  const canScrollUp = visibleStartIndex > 0;
-  const canScrollDown = visibleStartIndex + LINES_PER_PAGE < outputBuffer.length;
+  const hasMoreContent = visibleStartIndex + LINES_PER_PAGE < outputBuffer.length || pendingContent.length > 0;
 
   const addOutput = useCallback((text: string, type: OutputLine['type'] = 'output') => {
     const lines = text.split('\n');
@@ -177,9 +162,11 @@ export default function Game() {
 
       setOutputBuffer(current => {
         const updated = [...current, ...newLines];
-        // Auto-scroll to show new content
-        const newStart = Math.max(0, updated.length - LINES_PER_PAGE);
-        setVisibleStartIndex(newStart);
+        // Check if content overflows
+        if (updated.length > LINES_PER_PAGE) {
+          setWaitingForSpace(true);
+        }
+        // Show from start, user presses space to see more
         return updated;
       });
 
@@ -187,91 +174,76 @@ export default function Game() {
     });
   }, []);
 
-  // Handle paginated text that's too long
-  const addPaginatedOutput = useCallback((text: string, type: OutputLine['type'] = 'output') => {
-    const lines = text.split('\n');
-
-    // If it fits on one screen, just add it
-    if (lines.length <= LINES_PER_PAGE - 2) {
-      addOutput(text, type);
-      return;
+  // Queue content to show after space press
+  const queueContent = useCallback((text: string, type: OutputLine['type'] = 'output') => {
+    setPendingContent(prev => [...prev, { text, type }]);
+    if (!waitingForSpace) {
+      setWaitingForSpace(true);
     }
+  }, [waitingForSpace]);
 
-    // Split into pages
-    const pages: string[] = [];
-    for (let i = 0; i < lines.length; i += LINES_PER_PAGE - 2) {
-      pages.push(lines.slice(i, i + LINES_PER_PAGE - 2).join('\n'));
-    }
+  // Advance to next page on SPACE
+  const advancePage = useCallback(() => {
+    const newStart = visibleStartIndex + LINES_PER_PAGE;
 
-    // Show first page
-    addOutput(pages[0], type);
-
-    // Queue remaining pages
-    if (pages.length > 1) {
-      setPendingPages(pages.slice(1));
-      setWaitingForMore(true);
-      addOutput('── [SPACE] for more, [Q] to skip ──', 'more');
-    }
-  }, [addOutput]);
-
-  const showNextPage = useCallback(() => {
-    if (pendingPages.length === 0) {
-      setWaitingForMore(false);
-      return;
-    }
-
-    const [nextPage, ...remaining] = pendingPages;
-    addOutput(nextPage, 'output');
-    setPendingPages(remaining);
-
-    if (remaining.length > 0) {
-      addOutput('── [SPACE] for more, [Q] to skip ──', 'more');
+    if (newStart < outputBuffer.length) {
+      // More content in buffer to show
+      setVisibleStartIndex(newStart);
+      if (newStart + LINES_PER_PAGE >= outputBuffer.length && pendingContent.length === 0) {
+        setWaitingForSpace(false);
+      }
+    } else if (pendingContent.length > 0) {
+      // Add next pending content
+      const [next, ...rest] = pendingContent;
+      setPendingContent(rest);
+      addOutput(next.text, next.type);
+      // Stay waiting if more pending
+      if (rest.length === 0) {
+        setWaitingForSpace(false);
+      }
     } else {
-      setWaitingForMore(false);
+      setWaitingForSpace(false);
     }
-  }, [pendingPages, addOutput]);
-
-  const skipPages = useCallback(() => {
-    setPendingPages([]);
-    setWaitingForMore(false);
-    addOutput('── skipped ──', 'system');
-  }, [addOutput]);
+  }, [visibleStartIndex, outputBuffer.length, pendingContent, addOutput]);
 
   // Boot sequence
   useEffect(() => {
     const bootSequence = async () => {
-      addOutput(ASCII_ART.boot, 'ascii');
-
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      const initialState = createInitialState();
-      setGameState(initialState);
-      setIsBooting(false);
-
-      // Clear and show game
-      setOutputBuffer([]);
-      setVisibleStartIndex(0);
-
-      addOutput(ASCII_ART.llama, 'ascii');
-
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      addOutput(INTRO_TEXT, 'system');
-
-      // Show initial room (compact)
-      const room = initialState.rooms[initialState.player.location];
-      const roomDesc = `
-${room.name}
-${'─'.repeat(room.name.length)}
-${room.description}
-
-You see: ${Object.keys(room.items).join(', ')}
-Exits: north, east, south, west`;
-
-      setTimeout(() => addOutput(roomDesc, 'output'), 100);
+      addOutput(BOOT_SCREEN, 'ascii');
+      setWaitingForSpace(true);
     };
 
     bootSequence();
+  }, [addOutput]);
+
+  // Handle boot -> game transition
+  const startGame = useCallback(() => {
+    const initialState = createInitialState();
+    setGameState(initialState);
+    setIsBooting(false);
+
+    // Clear and show game
+    setOutputBuffer([]);
+    setVisibleStartIndex(0);
+    setLineCounter(0);
+    setWaitingForSpace(false);
+    setPendingContent([]);
+
+    // Queue all intro content
+    setTimeout(() => {
+      addOutput(ASCII_ART.llama, 'ascii');
+      addOutput('', 'output');
+      addOutput(INTRO_TEXT, 'system');
+      addOutput('', 'output');
+
+      const room = initialState.rooms[initialState.player.location];
+      addOutput(room.name, 'output');
+      addOutput('─'.repeat(room.name.length), 'output');
+      addOutput(room.description, 'output');
+      addOutput('', 'output');
+      addOutput(`You see: ${Object.keys(room.items).join(', ')}`, 'output');
+      addOutput(`Exits: north, east, south, west`, 'output');
+    }, 100);
   }, [addOutput]);
 
   // Focus input
@@ -279,34 +251,32 @@ Exits: north, east, south, west`;
     inputRef.current?.focus();
   };
 
-  // Handle keyboard navigation
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // Handle "more" pagination
-    if (waitingForMore) {
-      if (e.key === ' ' || e.key === 'Enter') {
+  // Global SPACE handler
+  useEffect(() => {
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      if (e.key === ' ' && waitingForSpace) {
         e.preventDefault();
-        showNextPage();
-        return;
+        if (isBooting) {
+          startGame();
+        } else {
+          advancePage();
+        }
       }
-      if (e.key === 'q' || e.key === 'Q' || e.key === 'Escape') {
-        e.preventDefault();
-        skipPages();
-        return;
-      }
-      return;
-    }
+    };
 
-    // Scroll through output history with Page Up/Down
-    if (e.key === 'PageUp') {
+    window.addEventListener('keydown', handleGlobalKey);
+    return () => window.removeEventListener('keydown', handleGlobalKey);
+  }, [waitingForSpace, isBooting, startGame, advancePage]);
+
+  // Handle keyboard in input
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (waitingForSpace && e.key === ' ') {
       e.preventDefault();
-      setVisibleStartIndex(prev => Math.max(0, prev - LINES_PER_PAGE));
-      return;
-    }
-    if (e.key === 'PageDown') {
-      e.preventDefault();
-      setVisibleStartIndex(prev =>
-        Math.min(Math.max(0, outputBuffer.length - LINES_PER_PAGE), prev + LINES_PER_PAGE)
-      );
+      if (isBooting) {
+        startGame();
+      } else {
+        advancePage();
+      }
       return;
     }
 
@@ -334,29 +304,11 @@ Exits: north, east, south, west`;
       }
       return;
     }
-  }, [waitingForMore, showNextPage, skipPages, commandHistory, historyIndex, outputBuffer.length]);
-
-  // Global key handler for pagination
-  useEffect(() => {
-    const handleGlobalKey = (e: KeyboardEvent) => {
-      if (waitingForMore) {
-        if (e.key === ' ' || e.key === 'Enter') {
-          e.preventDefault();
-          showNextPage();
-        } else if (e.key === 'q' || e.key === 'Q' || e.key === 'Escape') {
-          e.preventDefault();
-          skipPages();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleGlobalKey);
-    return () => window.removeEventListener('keydown', handleGlobalKey);
-  }, [waitingForMore, showNextPage, skipPages]);
+  }, [waitingForSpace, isBooting, startGame, advancePage, commandHistory, historyIndex]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !gameState || isLoading || waitingForMore) return;
+    if (!input.trim() || !gameState || isLoading || waitingForSpace) return;
 
     const userInput = input.trim();
     setInput('');
@@ -403,10 +355,14 @@ Exits: north, east, south, west`;
     } else if (result.output) {
       if (asciiToShow) {
         addOutput(asciiToShow, 'ascii');
-        setTimeout(() => addPaginatedOutput(result.output, 'output'), 50);
-      } else {
-        addPaginatedOutput(result.output);
       }
+      addOutput(result.output);
+
+      // Auto-scroll to end to show new content
+      setVisibleStartIndex(prev => {
+        const newTotal = outputBuffer.length + result.output.split('\n').length + (asciiToShow ? asciiToShow.split('\n').length : 0);
+        return Math.max(0, newTotal - LINES_PER_PAGE);
+      });
     }
   };
 
@@ -415,82 +371,78 @@ Exits: north, east, south, west`;
       case 'system': return 'text-amber-500';
       case 'input': return 'text-green-400';
       case 'error': return 'text-red-500';
-      case 'ascii': return 'text-amber-300';
-      case 'more': return 'text-cyan-400 animate-pulse';
+      case 'ascii': return 'text-amber-400';
       default: return 'text-amber-100';
     }
   };
 
   return (
     <div
-      className="h-screen w-screen bg-black text-amber-100 font-mono p-0 flex flex-col relative overflow-hidden select-none"
+      className="h-screen w-screen bg-black text-amber-100 font-mono flex flex-col relative overflow-hidden select-none"
       onClick={focusInput}
     >
       {/* CRT effects */}
       <div className="absolute inset-0 pointer-events-none z-20">
-        <div className="absolute inset-0 bg-gradient-radial from-transparent via-transparent to-black opacity-40" />
+        <div className="absolute inset-0 bg-gradient-radial from-transparent via-transparent to-black opacity-30" />
         <div
-          className="absolute inset-0 opacity-[0.02]"
+          className="absolute inset-0 opacity-[0.015]"
           style={{
-            backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0, 0, 0, 0.4) 1px, rgba(0, 0, 0, 0.4) 2px)',
+            backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0, 0, 0, 0.3) 1px, rgba(0, 0, 0, 0.3) 2px)',
             backgroundSize: '100% 2px',
           }}
         />
-        <div className="absolute inset-0 animate-flicker opacity-[0.015] bg-amber-500" />
       </div>
 
       {/* Terminal content */}
-      <div className="relative z-10 flex flex-col h-full p-3 md:p-4">
-        {/* Compact header */}
-        <header className="text-center mb-2 pb-2 border-b border-amber-700/40">
-          <h1 className="text-lg md:text-xl text-amber-400 font-bold tracking-[0.2em] uppercase">
+      <div className="relative z-10 flex flex-col h-full p-4">
+        {/* Header */}
+        <header className="text-center mb-3 pb-2 border-b border-amber-700/40">
+          <h1 className="text-xl text-amber-400 font-bold tracking-[0.25em] uppercase">
             LLAMA AT MACHU PICCHU
           </h1>
-          <div className="text-amber-600/60 text-[10px] tracking-wider">
-            ═══════════════════════════════════════════
+          <div className="text-amber-600/50 text-[10px] tracking-widest mt-1">
+            ════════════════════════════════════════════
           </div>
         </header>
 
-        {/* Terminal output - NO SCROLLBAR */}
+        {/* Terminal output */}
         <div
-          className="flex-1 overflow-hidden mb-2"
+          className="flex-1 overflow-hidden"
           style={{
-            textShadow: '0 0 4px rgba(251, 191, 36, 0.4)',
+            textShadow: '0 0 4px rgba(251, 191, 36, 0.3)',
           }}
         >
           {visibleLines.map((line) => (
             <div
               key={line.id}
-              className={`whitespace-pre leading-tight ${getLineColor(line.type)} ${
-                line.type === 'ascii' ? 'text-[9px] md:text-[11px] leading-none' : 'text-xs md:text-sm'
+              className={`whitespace-pre leading-snug ${getLineColor(line.type)} ${
+                line.type === 'ascii' ? 'text-[10px] md:text-xs leading-none' : 'text-sm'
               }`}
             >
-              {line.text || ' '}
+              {line.text || '\u00A0'}
             </div>
           ))}
           {isLoading && (
-            <div className="text-amber-600 animate-pulse text-xs md:text-sm">
+            <div className="text-amber-600 animate-pulse text-sm">
               ◐ PROCESSING...
             </div>
           )}
         </div>
 
-        {/* Scroll indicators */}
-        <div className="flex justify-between text-[10px] text-amber-600/50 mb-1 px-1">
-          <span>{canScrollUp ? '▲ PgUp' : ''}</span>
-          <span>
-            {outputBuffer.length > 0 &&
-              `${Math.min(visibleStartIndex + LINES_PER_PAGE, outputBuffer.length)}/${outputBuffer.length}`
-            }
-          </span>
-          <span>{canScrollDown ? '▼ PgDn' : ''}</span>
-        </div>
+        {/* PRESS SPACE stripe - full width, prominent */}
+        {waitingForSpace && (
+          <div className="absolute bottom-20 left-0 right-0 z-30">
+            <div className="bg-amber-600 text-black py-2 text-center font-bold text-sm tracking-widest animate-pulse">
+              ════════════════  PRESS SPACE TO CONTINUE  ════════════════
+            </div>
+          </div>
+        )}
 
         {/* Input area */}
-        <div className="border-t border-amber-700/40 pt-2">
-          <form onSubmit={handleSubmit} className="flex items-center gap-1">
+        <div className="border-t border-amber-700/40 pt-3 mt-2">
+          <form onSubmit={handleSubmit} className="flex items-center gap-2">
             <span className="text-green-400 font-bold text-sm">
-              {waitingForMore ? '[MORE]' : gameState?.questionGame.active ? '??>' : 'C:\\>'}
+              {gameState?.questionGame.active ? '??>' : 'C:\\>'}
             </span>
             <input
               ref={inputRef}
@@ -498,10 +450,10 @@ Exits: north, east, south, west`;
               value={input}
               onChange={(e) => setInput(e.target.value.toUpperCase())}
               onKeyDown={handleKeyDown}
-              disabled={isLoading || isBooting}
+              disabled={isLoading || isBooting || waitingForSpace}
               className="flex-1 bg-transparent border-none outline-none text-green-400 placeholder-amber-700/40 uppercase tracking-wider text-sm"
               placeholder={
-                waitingForMore ? 'SPACE=more Q=skip' :
+                waitingForSpace ? '' :
                 isLoading ? 'PROCESSING...' :
                 'ENTER COMMAND...'
               }
@@ -510,39 +462,31 @@ Exits: north, east, south, west`;
               spellCheck="false"
               style={{ textShadow: '0 0 4px rgba(74, 222, 128, 0.4)' }}
             />
-            <span className="text-green-400 animate-pulse">▌</span>
+            {!waitingForSpace && <span className="text-green-400 animate-pulse">▌</span>}
           </form>
         </div>
 
         {/* Status bar */}
-        <footer className="mt-2 text-[9px] text-amber-700/50 border-t border-amber-800/30 pt-2">
+        <footer className="mt-2 text-[9px] text-amber-700/40 border-t border-amber-800/30 pt-2">
           <div className="flex justify-between items-center">
-            <span>↑↓=HISTORY</span>
-            <span>PGUP/PGDN=SCROLL</span>
-            <span>MEM:640K</span>
-            <span>TURN:{gameState?.turnCount || 0}</span>
+            <span>↑↓ HISTORY</span>
+            <span>LLAMA OS v1.0</span>
+            <span>TURN: {gameState?.turnCount || 0}</span>
           </div>
         </footer>
       </div>
 
       <style jsx global>{`
-        @keyframes flicker {
-          0%, 100% { opacity: 0.015; }
-          50% { opacity: 0.025; }
-        }
-        .animate-flicker {
-          animation: flicker 0.1s infinite;
-        }
         .bg-gradient-radial {
           background: radial-gradient(ellipse at center, transparent 0%, transparent 60%, black 100%);
         }
         * {
           font-family: 'JetBrains Mono', 'IBM Plex Mono', 'Consolas', 'Courier New', monospace !important;
         }
-        /* Disable all scrolling */
         html, body {
           overflow: hidden;
           height: 100%;
+          background: black;
         }
       `}</style>
     </div>
