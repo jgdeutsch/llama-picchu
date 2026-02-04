@@ -236,6 +236,10 @@ export function processCommand(playerId: number, rawInput: string): void {
     case 'stand':
       processWake(context);
       break;
+    case 'rent':
+    case 'stay':
+      processRent(context);
+      break;
 
     // Training
     case 'practice':
@@ -912,6 +916,109 @@ function processRest(ctx: CommandContext): void {
 
 function processWake(ctx: CommandContext): void {
   processCharacterCommand(ctx, 'wake');
+}
+
+function processRent(ctx: CommandContext): void {
+  // Check if we're at an inn
+  const room = worldManager.getRoom(ctx.roomId);
+  if (!room?.flags?.restRoom) {
+    sendOutput(ctx.playerId, '\nYou can only rent a room at an inn or lodging establishment.\nTry the Divided Sky Inn in the village.\n');
+    return;
+  }
+
+  const db = getDatabase();
+  const player = playerQueries.findById(db).get(ctx.playerId) as {
+    gold: number;
+    is_resting: number;
+  } | undefined;
+
+  if (!player) {
+    sendOutput(ctx.playerId, 'Error: Could not find your character.');
+    return;
+  }
+
+  // Inn room costs
+  const nightlyRate = room.flags.restCost || 5;
+  const weeklyRate = Math.floor(nightlyRate * 5); // Discount for a week
+
+  // Check if player specified duration
+  const duration = ctx.args[0]?.toLowerCase();
+
+  if (!duration) {
+    // Show rental options
+    const lines = [
+      '',
+      `╔════════════════════════════════════════════════════╗`,
+      `║         ${room.name.padEnd(36)}      ║`,
+      `╠════════════════════════════════════════════════════╣`,
+      `║  Nightly Rate:  ${String(nightlyRate + ' gold').padEnd(20)} "rent night"  ║`,
+      `║  Weekly Rate:   ${String(weeklyRate + ' gold').padEnd(20)} "rent week"   ║`,
+      `╠════════════════════════════════════════════════════╣`,
+      `║  Your gold: ${String(player.gold).padEnd(38)}║`,
+      `╠════════════════════════════════════════════════════╣`,
+      `║  Renting includes:                                 ║`,
+      `║    • A clean bed for the night                     ║`,
+      `║    • Doubled recovery rate while resting           ║`,
+      `║    • Safe storage for your belongings              ║`,
+      `╚════════════════════════════════════════════════════╝`,
+      '',
+    ];
+    sendOutput(ctx.playerId, lines.join('\n'));
+    return;
+  }
+
+  // Process rental
+  let cost = nightlyRate;
+  let durationText = 'the night';
+
+  if (duration === 'week' || duration === 'weekly') {
+    cost = weeklyRate;
+    durationText = 'the week';
+  } else if (duration !== 'night' && duration !== 'nightly' && duration !== 'tonight') {
+    sendOutput(ctx.playerId, 'Rent for how long? Use "rent night" or "rent week".');
+    return;
+  }
+
+  if (player.gold < cost) {
+    sendOutput(ctx.playerId, `\nYou don't have enough gold. You need ${cost} gold but only have ${player.gold}.\n`);
+    return;
+  }
+
+  // Deduct gold
+  playerManager.modifyGold(ctx.playerId, -cost);
+
+  // Set player to resting state
+  playerQueries.updateRestState(db).run(1, ctx.playerId);
+
+  // Flavorful response
+  const innkeeperResponses = [
+    `Innkeeper Antelope nods and takes your ${cost} gold. "Room's up the stairs, second door on the left. Fresh sheets."`,
+    `You pay ${cost} gold. Antelope slides a key across the bar. "Sleep well. Breakfast isn't included."`,
+    `"${cost} gold," Antelope says flatly. You hand it over. "Don't make noise after midnight."`,
+  ];
+
+  const response = innkeeperResponses[Math.floor(Math.random() * innkeeperResponses.length)];
+
+  sendOutput(ctx.playerId, `
+${response}
+
+You head upstairs to your rented room for ${durationText}. The bed is simple but clean.
+Your recovery rate is doubled while you rest here.
+
+[Paid ${cost} gold. Type "wake" or "stand" when you're ready to get up.]
+`);
+
+  // Notify others in the room
+  const playersInRoom = worldManager.getPlayersInRoom(ctx.roomId);
+  for (const otherId of playersInRoom) {
+    if (otherId !== ctx.playerId) {
+      connectionManager.sendToPlayer(otherId, {
+        type: 'output',
+        text: `${ctx.playerName} pays for a room and heads upstairs.`,
+        messageType: 'normal',
+      });
+    }
+  }
 }
 
 function processPractice(ctx: CommandContext): void {

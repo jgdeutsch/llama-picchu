@@ -6,7 +6,7 @@ import { getDatabase, playerQueries } from '../database';
 import { worldManager } from './worldManager';
 import { connectionManager } from './connectionManager';
 import { getNpcById, getNpcPersonalityPrompt } from '../data/npcs';
-import { generateNpcGossip, generateNpcShout, getTimeOfDay, generateNpcRoomEntryComment, generateNpcEmote } from '../services/geminiService';
+import { generateNpcGossip, generateNpcShout, getTimeOfDay, generateNpcRoomEntryComment, generateNpcEmote, generateNpcPurpose } from '../services/geminiService';
 
 // Types
 interface NpcState {
@@ -296,6 +296,17 @@ class NPCLifeManager {
           const npcTemplate = getNpcById(npcState.npc_template_id);
           if (npcTemplate) {
             const personality = getNpcPersonalityPrompt(npcState.npc_template_id);
+
+            // If NPC doesn't have a current_purpose, generate one now
+            if (!npcState.current_purpose) {
+              this.generateAndStorePurpose(
+                npcState.npc_instance_id,
+                npcTemplate,
+                npcState,
+                roomId,
+                npcState.current_task || 'wander'
+              );
+            }
 
             // Generate NPC reactions asynchronously - either emote, comment, or both
             this.generateNpcRoomReaction(
@@ -668,14 +679,17 @@ class NPCLifeManager {
         if (targetRoom === 'home') targetRoom = npc.home_room;
         if (targetRoom === 'random') targetRoom = this.getRandomAdjacentRoom(npc.current_room);
 
+        // Update current task - use taskType if available, otherwise use the generic task
+        const newTask = currentEntry.taskType || currentEntry.task;
+
         // Move NPC if needed
         if (targetRoom && targetRoom !== npc.current_room) {
-          this.moveNpc(npc.npc_instance_id, targetRoom);
+          this.moveNpc(npc.npc_instance_id, targetRoom, newTask);
         }
 
         // Start new task if needed
-        if (currentEntry.taskType && currentEntry.taskType !== npc.current_task) {
-          this.startTask(npc.npc_instance_id, currentEntry.taskType, currentEntry.taskTarget || null);
+        if (newTask && newTask !== npc.current_task) {
+          this.startTask(npc.npc_instance_id, newTask, currentEntry.taskTarget || null);
         }
       }
     }
@@ -687,7 +701,7 @@ class NPCLifeManager {
   }
 
   // Move an NPC to a new room
-  private moveNpc(npcInstanceId: number, targetRoom: string): void {
+  private moveNpc(npcInstanceId: number, targetRoom: string, scheduleActivity?: string): void {
     const db = getDatabase();
 
     // Get current state
@@ -719,14 +733,66 @@ class NPCLifeManager {
       });
     }
 
-    // Notify players in new room
+    // Check if there are players in the new room - if so, generate a purpose
     const playersInNew = worldManager.getPlayersInRoom(targetRoom);
+    if (playersInNew.length > 0) {
+      // Generate a purpose for why this NPC is coming to this room
+      this.generateAndStorePurpose(
+        npcInstanceId,
+        template,
+        state,
+        targetRoom,
+        scheduleActivity || state.current_task || 'wander'
+      );
+    }
+
+    // Notify players in new room
     for (const pid of playersInNew) {
       connectionManager.sendToPlayer(pid, {
         type: 'output',
         text: `${template.name} arrives.`,
         messageType: 'movement'
       });
+    }
+  }
+
+  // Generate and store a purpose for an NPC in their current room
+  private async generateAndStorePurpose(
+    npcInstanceId: number,
+    template: any,
+    state: any,
+    targetRoom: string,
+    scheduleActivity: string
+  ): Promise<void> {
+    const db = getDatabase();
+    const targetRoomData = worldManager.getRoom(targetRoom);
+    const targetRoomName = targetRoomData?.name || 'this place';
+
+    try {
+      const personality = getNpcPersonalityPrompt(template.id);
+      const npcJob = template.type || 'villager';
+      const timeOfDay = getTimeOfDay();
+
+      const purpose = await generateNpcPurpose(
+        template.name,
+        personality,
+        npcJob,
+        state.home_room || 'unknown',
+        state.work_room || 'unknown',
+        targetRoom,
+        targetRoomName,
+        scheduleActivity,
+        timeOfDay
+      );
+
+      // Store the purpose
+      db.prepare(`
+        UPDATE npc_state SET current_purpose = ? WHERE npc_instance_id = ?
+      `).run(purpose, npcInstanceId);
+
+      console.log(`[NPCLife] ${template.name} is ${purpose}`);
+    } catch (error) {
+      console.error(`[NPCLife] Failed to generate purpose for ${template.name}:`, error);
     }
   }
 

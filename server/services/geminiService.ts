@@ -1302,3 +1302,131 @@ Your helpful response:`;
     return 'Your brain is foggy at the moment. Try "help" for a list of commands.';
   }
 }
+
+// Generate a contextual purpose for an NPC when they enter a room
+// This explains WHY they're there, making the world feel more alive
+export async function generateNpcPurpose(
+  npcName: string,
+  npcPersonality: string,
+  npcJob: string,
+  homeRoom: string,
+  workRoom: string,
+  destinationRoom: string,
+  destinationRoomName: string,
+  scheduleActivity: string,
+  timeOfDay: string
+): Promise<string> {
+  // Quick purposes for common situations - don't always need Gemini
+  const quickPurposes: Record<string, Record<string, string[]>> = {
+    // At the inn
+    'the_inn': {
+      'socialize': [
+        'having a drink after a long day',
+        'meeting a friend for dinner',
+        'catching up on village gossip',
+        'taking a well-earned break',
+        'warming up by the fire',
+      ],
+      'eat': [
+        'grabbing a quick meal',
+        'having dinner before heading home',
+        'treating themselves to Antelope\'s famous stew',
+      ],
+      'rest': [
+        'getting some rest away from home',
+        'waiting out a headache with some quiet',
+      ],
+    },
+    // At the market
+    'market_district': {
+      'socialize': [
+        'browsing the stalls',
+        'picking up a few things',
+        'looking for a good deal',
+        'checking what\'s fresh today',
+      ],
+      'wander': [
+        'running errands',
+        'looking for something specific',
+        'comparing prices',
+      ],
+    },
+    // At the bakery
+    'bakery': {
+      'eat': [
+        'picking up bread for dinner',
+        'getting a sweet roll as a treat',
+        'buying breakfast supplies',
+      ],
+      'socialize': [
+        'chatting with Possum',
+        'enjoying the warm smell of fresh bread',
+      ],
+    },
+    // At the village square
+    'village_square': {
+      'socialize': [
+        'catching up with neighbors',
+        'listening for news',
+        'enjoying the afternoon',
+        'taking a break from work',
+      ],
+      'wander': [
+        'passing through on the way somewhere',
+        'stretching their legs',
+        'getting some fresh air',
+      ],
+    },
+  };
+
+  // Try to use a quick purpose first
+  const roomPurposes = quickPurposes[destinationRoom];
+  if (roomPurposes) {
+    const activityPurposes = roomPurposes[scheduleActivity] || roomPurposes['socialize'];
+    if (activityPurposes && activityPurposes.length > 0) {
+      // Pick consistently based on NPC name hash so same NPC gets same purpose for a while
+      const hash = npcName.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+      const timeHash = Math.floor(Date.now() / (30 * 60 * 1000)); // Changes every 30 min
+      const index = (hash + timeHash) % activityPurposes.length;
+      return activityPurposes[index];
+    }
+  }
+
+  // For uncommon situations, use Gemini to generate a purpose
+  const prompt = `You are generating a brief reason why ${npcName} has come to ${destinationRoomName}.
+
+CHARACTER: ${npcName}
+- Personality: ${npcPersonality}
+- Job/role: ${npcJob}
+- Home: ${homeRoom}
+- Work: ${workRoom}
+- Time of day: ${timeOfDay}
+- Schedule says they should: ${scheduleActivity}
+
+Generate ONE short phrase (4-8 words) explaining why they're at ${destinationRoomName}.
+Should be a mundane, believable reason - nothing dramatic.
+Don't use ${npcName}'s name in the response.
+Examples: "picking up supplies for tomorrow", "meeting someone for lunch", "looking for their friend", "taking a shortcut home"
+
+Their purpose:`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const purpose = result.response.text().trim().replace(/^["']|["']$/g, '').toLowerCase();
+    // Validate it's reasonable length
+    if (purpose.length > 5 && purpose.length < 100) {
+      return purpose;
+    }
+    return 'going about their day';
+  } catch (error) {
+    // Fallback purposes
+    const fallbacks = [
+      'going about their day',
+      'on an errand',
+      'taking a break',
+      'passing through',
+      'running errands',
+    ];
+    return fallbacks[Math.floor(Math.random() * fallbacks.length)];
+  }
+}

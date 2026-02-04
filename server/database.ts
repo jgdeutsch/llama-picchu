@@ -221,6 +221,7 @@ export function initializeDatabase(): void {
       current_task TEXT,                    -- 'farming', 'cooking', 'patrolling', 'resting', 'socializing', etc.
       task_progress INTEGER DEFAULT 0,      -- 0-100 percent complete
       task_target TEXT,                     -- What they're working on (e.g., 'wheat field', 'dinner preparation')
+      current_purpose TEXT,                 -- AI-generated reason for being in current room (e.g., "picking up bread for dinner")
       energy INTEGER DEFAULT 100,           -- Affects behavior, 0-100
       mood TEXT DEFAULT 'neutral',          -- 'happy', 'sad', 'angry', 'worried', 'content', 'tired'
       home_room TEXT,                       -- Where they sleep/live
@@ -233,6 +234,13 @@ export function initializeDatabase(): void {
       FOREIGN KEY (npc_instance_id) REFERENCES room_npcs(id) ON DELETE CASCADE
     )
   `);
+
+  // Add current_purpose column if it doesn't exist (migration for existing DBs)
+  try {
+    database.exec(`ALTER TABLE npc_state ADD COLUMN current_purpose TEXT`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
 
   // NPC Tasks - active and queued tasks NPCs are working on
   // Players can see these and HELP with them
