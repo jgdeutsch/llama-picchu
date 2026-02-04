@@ -253,11 +253,22 @@ KNOWN CHARACTERS IN GAMEHENGE (ONLY reference these people):
 - Fisherman Harpua (river crossing)
 - Captain Sloth, Gate Guard Viktor, Hendricks (guards)
 
-KNOWN PLACES:
-- Village Square, Market District, Bakery, Tailor Shop, Blacksmith Forge, The Inn
-- Farmlands, River Crossing, Forest areas
-- Wilson's Castle, Guard Barracks, Dungeon
-- Icculus's Tower, Tela's Cottage, Underground Tunnels
+KNOWN PLACES AND DIRECTIONS (from Village Square):
+- Market District: EAST from Village Square
+- Bakery: SOUTHEAST from Market District
+- Tailor Shop: NORTHEAST from Market District
+- Blacksmith Forge: NORTHEAST from Village Square
+- The Inn: NORTH from Village Square
+- General Store: WEST from Village Square
+- Lizard Homes West: WEST from General Store (where Martha lives)
+- Farmlands (Rutherford's farm): SOUTH from Lizard Homes West (so: west, west, south from square)
+- River Crossing: EAST from Farmlands
+- Forest Edge: EAST from River Crossing
+- Icculus's Tower: Deep in the forest, past the Great Tree
+- Wilson's Castle: NORTH through the border checkpoint
+- Underground Tunnels: SOUTH from Farmlands
+
+WHEN GIVING DIRECTIONS: Use the actual directions above. If you don't know, say "I'm not sure exactly."
 
 CRITICAL: Do NOT invent people or places. Only reference characters and locations from the lists above. If you don't know someone, say "I don't know anyone by that name."
 
@@ -935,6 +946,8 @@ CRITICAL RULES:
 4. Stay in character
 
 KNOWN PEOPLE: Wilson, Icculus, Tela, Forbin, Wolfe, Fee, Palmer, Rutherford, Martha, Jimmy, Gordo, Elena, Possum, Pip, Antelope, Lydia, Esther, Moondog, Barnaby, Marge, Gertrude, Harpua, Sloth, Viktor, Hendricks.
+
+DIRECTIONS FROM VILLAGE SQUARE: Market=east, Bakery=se from market, Tailor=ne from market, Forge=ne, Inn=north, Store=west, Homes=west from store, Farmlands=south from homes (west,west,south from square), River=east from farm.
 
 Format:
 EMOTE_1ST: [action or NONE]
