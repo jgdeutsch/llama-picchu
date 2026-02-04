@@ -200,6 +200,10 @@ export function processCommand(playerId: number, rawInput: string): void {
     case 'where':
       processWhere(context);
       break;
+    case 'people':
+    case 'scan':
+      processPeople(context);
+      break;
     case 'reply':
     case 'r':
       processReplyCmd(context);
@@ -749,6 +753,50 @@ function processReplyCmd(ctx: CommandContext): void {
     return;
   }
   processReply(ctx);
+}
+
+function processPeople(ctx: CommandContext): void {
+  // List all players and NPCs in the current room
+  const db = getDatabase();
+  const room = worldManager.getRoom(ctx.roomId);
+
+  const lines: string[] = ['', `[ People in ${room?.name || 'this area'} ]`];
+
+  // Get players in room
+  const playersInRoom = playerQueries.getPlayersInRoom(db).all(ctx.roomId) as {
+    id: number;
+    name: string;
+    level: number;
+    class_id: number;
+  }[];
+
+  if (playersInRoom.length > 0) {
+    lines.push('');
+    lines.push('Players:');
+    for (const p of playersInRoom) {
+      const classDef = playerManager.getClassDefinition(p.class_id);
+      const youMarker = p.id === ctx.playerId ? ' (you)' : '';
+      lines.push(`  ${p.name} - level ${p.level} ${classDef?.name || 'llama'}${youMarker}`);
+    }
+  }
+
+  // Get NPCs in room
+  const npcsInRoom = npcManager.getNpcsInRoom(ctx.roomId);
+
+  if (npcsInRoom.length > 0) {
+    lines.push('');
+    lines.push('Others:');
+    for (const npc of npcsInRoom) {
+      lines.push(`  ${npc.name}`);
+    }
+  }
+
+  if (playersInRoom.length === 0 && npcsInRoom.length === 0) {
+    lines.push('  Nobody else is here.');
+  }
+
+  lines.push('');
+  sendOutput(ctx.playerId, lines.join('\n'));
 }
 
 function processWhere(ctx: CommandContext): void {
@@ -1598,6 +1646,7 @@ function processHelp(ctx: CommandContext): void {
 ║   gossip/. <message> - Chat with all players           ║
 ║   who - List online players                            ║
 ║   where <player> - See where someone went              ║
+║   people/scan - List everyone in this room             ║
 ╠════════════════════════════════════════════════════════╣
 ║ JOBS & ECONOMY                                         ║
 ║   jobs - See available work at your location           ║

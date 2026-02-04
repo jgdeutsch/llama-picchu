@@ -1127,7 +1127,7 @@ LOOKING: look/l [target], examine/x [target]
 ITEMS: take/get <item>, drop <item>, inventory/i, equipment/eq, wear/wield <item>, remove <slot>
 CHARACTER: score/sc, vitals, skills, quests
 COMBAT: kill/k <target>, cast <spell> [target], consider/con <target>, flee
-COMMUNICATION: say/' <msg>, tell <name> <msg>, reply/r <msg>, shout <msg>, gossip/. <msg>, who, where <player>
+COMMUNICATION: say/' <msg>, tell <name> <msg>, reply/r <msg>, shout <msg>, gossip/. <msg>, who, where <player>, people/scan (list everyone in room)
 INTERACTION: talk <npc>, assist [npc], give <item> <npc> or give <amount> <player>
 SURVIVAL: eat <food>, drink <water>, rest/sleep, wake/stand
 ECONOMY: jobs, apply <job#>, work, quit, buy <item>, sell <item>, list
