@@ -168,22 +168,45 @@ class WorldManager {
     lines.push(template.description);
     lines.push('');
 
-    // Items on ground
-    if (items.length > 0) {
-      const itemDescriptions = items.map((item) => {
-        const itemTemplate = itemTemplates.find((t) => t.id === item.itemTemplateId);
-        if (!itemTemplate) return null;
-        if (item.quantity > 1) {
-          return `  ${itemTemplate.shortDesc} (x${item.quantity})`;
-        }
-        return `  ${itemTemplate.shortDesc}`;
-      }).filter(Boolean);
+    // Items on ground - displayed with numbered brackets
+    // Also check for features that have corresponding items (like the Helping Friendly Book)
+    let itemIndex = 1;
+    const displayedItems: string[] = [];
 
-      if (itemDescriptions.length > 0) {
-        lines.push('You see:');
-        lines.push(...itemDescriptions as string[]);
-        lines.push('');
+    // First, show actual items in the room
+    for (const item of items) {
+      const itemTemplate = itemTemplates.find((t) => t.id === item.itemTemplateId);
+      if (!itemTemplate) continue;
+      if (item.quantity > 1) {
+        displayedItems.push(`[${itemIndex}] ${itemTemplate.shortDesc} (x${item.quantity})`);
+      } else {
+        displayedItems.push(`[${itemIndex}] ${itemTemplate.shortDesc}`);
       }
+      itemIndex++;
+    }
+
+    // Then, check for room features that have corresponding item templates but aren't spawned yet
+    if (template.features) {
+      for (const feature of template.features) {
+        // Try to find an item that matches this feature
+        const matchedItem = this.findItemForFeature(feature.keywords);
+        if (matchedItem) {
+          // Check if this item is already in the room
+          const alreadyInRoom = items.some(i => i.itemTemplateId === matchedItem.id);
+          if (!alreadyInRoom) {
+            // Check if it's a takeable type of feature (not thrones, fountains, etc.)
+            if (this.isFeatureItem(feature)) {
+              displayedItems.push(`[${itemIndex}] ${matchedItem.shortDesc}`);
+              itemIndex++;
+            }
+          }
+        }
+      }
+    }
+
+    if (displayedItems.length > 0) {
+      lines.push(...displayedItems);
+      lines.push('');
     }
 
     // NPCs in room - with contextual activity descriptions
@@ -246,6 +269,12 @@ class WorldManager {
   removeItemFromRoom(roomItemId: number): void {
     const db = getDatabase();
     roomItemQueries.removeItem(db).run(roomItemId);
+  }
+
+  // Get all items in a room
+  getItemsInRoom(roomId: string): RoomItemInstance[] {
+    const db = getDatabase();
+    return roomItemQueries.getByRoom(db).all(roomId) as RoomItemInstance[];
   }
 
   // Get item in room by keyword
@@ -645,6 +674,51 @@ class WorldManager {
     }
 
     return knownPlaces;
+  }
+
+  // Find an item template that matches a room feature's keywords
+  private findItemForFeature(featureKeywords: string[]): typeof itemTemplates[0] | undefined {
+    for (const keyword of featureKeywords) {
+      const keywordLower = keyword.toLowerCase();
+      for (const item of itemTemplates) {
+        const itemNameLower = item.name.toLowerCase();
+        // Match on item name or keywords
+        if (itemNameLower.includes(keywordLower) || keywordLower.includes(itemNameLower)) {
+          return item;
+        }
+        if (item.keywords.some(k => k.toLowerCase().includes(keywordLower) || keywordLower.includes(k.toLowerCase()))) {
+          return item;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  // Determine if a feature should be displayed as a takeable item
+  private isFeatureItem(feature: { keywords: string[]; description: string }): boolean {
+    // Large structures and fixtures should NOT be displayed as items
+    const untakeableKeywords = ['throne', 'fountain', 'oven', 'forge', 'statue', 'wall', 'ceiling',
+                                 'floor', 'door', 'gate', 'window', 'stall', 'table', 'desk',
+                                 'tapestry', 'tapestries', 'chains', 'cages', 'telescope'];
+    if (feature.keywords.some(k => untakeableKeywords.includes(k.toLowerCase()))) {
+      return false;
+    }
+
+    // Check if the description suggests it's fixed in place
+    const description = feature.description.toLowerCase();
+    if (description.includes('carved from') || description.includes('built into') ||
+        description.includes('attached to') || description.includes('embedded') ||
+        description.includes('towers') || description.includes('dominates')) {
+      return false;
+    }
+
+    // Items explicitly described as under glass, sitting, or lying are potentially takeable
+    if (description.includes('sits') || description.includes('lies') ||
+        description.includes('rests') || description.includes('placed')) {
+      return true;
+    }
+
+    return false;
   }
 }
 

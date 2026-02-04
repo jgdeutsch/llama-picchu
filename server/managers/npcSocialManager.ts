@@ -330,7 +330,7 @@ class NpcSocialManager {
 
     // Get NPCs who are in the same room
     const npcsByRoom = db.prepare(`
-      SELECT current_room, GROUP_CONCAT(npc_id) as npcs
+      SELECT current_room, GROUP_CONCAT(npc_template_id) as npcs
       FROM npc_state
       WHERE current_task != 'sleeping'
       GROUP BY current_room
@@ -367,11 +367,11 @@ class NpcSocialManager {
 
     // Get NPC states
     const speakerState = db.prepare(`
-      SELECT current_task, mood FROM npc_state WHERE npc_id = ?
+      SELECT current_task, mood FROM npc_state WHERE npc_template_id = ?
     `).get(speakerId) as { current_task: string | null; mood: string } | undefined;
 
     const listenerState = db.prepare(`
-      SELECT current_task FROM npc_state WHERE npc_id = ?
+      SELECT current_task FROM npc_state WHERE npc_template_id = ?
     `).get(listenerId) as { current_task: string | null } | undefined;
 
     // Get relationship
@@ -543,16 +543,16 @@ class NpcSocialManager {
 
     // Get all NPCs who haven't written today
     const npcsToWrite = db.prepare(`
-      SELECT DISTINCT ns.npc_id
+      SELECT DISTINCT ns.npc_template_id
       FROM npc_state ns
-      WHERE ns.npc_id NOT IN (
+      WHERE ns.npc_template_id NOT IN (
         SELECT npc_id FROM npc_journals
         WHERE date(entry_date) = date('now')
       )
-    `).all() as { npc_id: number }[];
+    `).all() as { npc_template_id: number }[];
 
-    for (const { npc_id } of npcsToWrite) {
-      this.generateJournalEntry(npc_id);
+    for (const { npc_template_id } of npcsToWrite) {
+      this.generateJournalEntry(npc_template_id);
     }
   }
 

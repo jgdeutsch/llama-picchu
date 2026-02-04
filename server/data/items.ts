@@ -1204,6 +1204,22 @@ export const itemTemplates: ItemTemplate[] = [
     questItem: false,
     keywords: ['sap', 'tree', 'sticky', 'glue'],
   },
+
+  // === QUEST / SPECIAL ITEMS ===
+  {
+    id: 400,
+    name: 'The Helping Friendly Book',
+    shortDesc: 'The legendary Helping Friendly Book radiates ancient wisdom.',
+    longDesc: 'This is THE Helping Friendly Book - the sacred tome stolen by Wilson from the Lizards. Its pages contain all the knowledge the Lizards need to be free. The cover is worn with age but the words within are said to be eternal. You can feel its power just holding it.',
+    type: 'quest',
+    value: 0,
+    weight: 2,
+    levelRequired: 1,
+    stackable: false,
+    maxStack: 1,
+    questItem: true,
+    keywords: ['book', 'helping', 'friendly', 'tome', 'knowledge', 'sacred'],
+  },
 ];
 
 // Helper to get item by ID

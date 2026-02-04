@@ -218,7 +218,46 @@ function processTakeItem(ctx: CommandContext): void {
   const target = ctx.args.join(' ').toLowerCase();
 
   // Find item in room
-  const roomItem = worldManager.findItemInRoom(ctx.roomId, target);
+  let roomItem = worldManager.findItemInRoom(ctx.roomId, target);
+
+  // If not found as an item, check if it's a room feature that could become an item
+  if (!roomItem) {
+    const room = worldManager.getRoom(ctx.roomId);
+    if (room?.features) {
+      // Check if the target matches a feature
+      const matchingFeature = room.features.find(feature =>
+        feature.keywords.some(kw => target.includes(kw) || kw.includes(target))
+      );
+
+      if (matchingFeature) {
+        // Try to find an item template that matches this feature
+        const matchedItem = findItemTemplateForFeature(target, matchingFeature.keywords);
+
+        if (matchedItem) {
+          // Check if the item is takeable (some features like thrones shouldn't be)
+          if (isFeatureTakeable(matchingFeature, matchedItem)) {
+            // Dynamically spawn the item in the room
+            worldManager.addItemToRoom(ctx.roomId, matchedItem.id, 1);
+            // Now find it
+            roomItem = worldManager.findItemInRoom(ctx.roomId, target);
+
+            if (roomItem) {
+              sendOutput(ctx.playerId, `You carefully extract the ${matchedItem.name} from its resting place...`);
+            }
+          } else {
+            // The feature exists but can't be taken
+            sendOutput(ctx.playerId, `You can't take that. ${matchingFeature.description.substring(0, 100)}...`);
+            return;
+          }
+        } else {
+          // Feature exists but no corresponding item - describe why you can't take it
+          sendOutput(ctx.playerId, `You examine it, but it's not something you can just pick up. ${matchingFeature.description.substring(0, 80)}...`);
+          return;
+        }
+      }
+    }
+  }
+
   if (!roomItem) {
     sendOutput(ctx.playerId, `You don't see "${target}" here.`);
     return;
@@ -256,6 +295,63 @@ function processTakeItem(ctx: CommandContext): void {
       });
     }
   }
+}
+
+// Find an item template that matches a room feature's keywords
+function findItemTemplateForFeature(target: string, featureKeywords: string[]): typeof itemTemplates[0] | undefined {
+  const targetLower = target.toLowerCase();
+
+  // First try to find by the player's target
+  for (const item of itemTemplates) {
+    const itemNameLower = item.name.toLowerCase();
+    if (itemNameLower.includes(targetLower) || targetLower.includes(itemNameLower)) {
+      return item;
+    }
+    if (item.keywords.some(k => k.toLowerCase().includes(targetLower) || targetLower.includes(k.toLowerCase()))) {
+      return item;
+    }
+  }
+
+  // Then try to match against feature keywords
+  for (const keyword of featureKeywords) {
+    const keywordLower = keyword.toLowerCase();
+    for (const item of itemTemplates) {
+      const itemNameLower = item.name.toLowerCase();
+      if (itemNameLower.includes(keywordLower) || keywordLower.includes(itemNameLower)) {
+        return item;
+      }
+      if (item.keywords.some(k => k.toLowerCase().includes(keywordLower) || keywordLower.includes(k.toLowerCase()))) {
+        return item;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+// Determine if a feature can be taken as an item
+function isFeatureTakeable(feature: { keywords: string[]; description: string }, item: typeof itemTemplates[0]): boolean {
+  const description = feature.description.toLowerCase();
+
+  // Large structures and fixtures can't be taken
+  const untakeableKeywords = ['throne', 'fountain', 'oven', 'forge', 'statue', 'wall', 'ceiling', 'floor', 'door', 'gate', 'window'];
+  if (feature.keywords.some(k => untakeableKeywords.includes(k.toLowerCase()))) {
+    return false;
+  }
+
+  // Items described as fixed in place can't be taken
+  if (description.includes('carved from') || description.includes('built into') ||
+      description.includes('attached to') || description.includes('embedded')) {
+    return false;
+  }
+
+  // Quest items and valuable items CAN be taken (that's the point!)
+  if (item.questItem || item.type === 'quest') {
+    return true;
+  }
+
+  // Most regular items can be taken
+  return true;
 }
 
 function processDropItem(ctx: CommandContext): void {
