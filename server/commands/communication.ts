@@ -97,6 +97,9 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
     WHERE npc_template_id = ?
   `).get(npc.npcTemplateId) as { current_task: string | null } | undefined;
 
+  console.log(`[NPC Speech] Generating reaction from ${template.name} (id: ${npc.npcTemplateId}) to "${message}"`);
+  console.log(`[NPC Speech] Context: trustLevel=${trustLevel}, task=${npcState?.current_task || 'none'}`);
+
   try {
     const reaction = await generateNpcSpeechReaction(
       npc.npcTemplateId,
@@ -108,6 +111,7 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
       message,
       trustLevel
     );
+    console.log(`[NPC Speech] Gemini returned:`, JSON.stringify(reaction));
 
     // Record this interaction in NPC memory regardless of reaction
     addNpcMemory(
@@ -126,6 +130,7 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
     if (hasReaction) {
       // Send emote if present
       if (reaction.emote) {
+        console.log(`[NPC Speech] Sending emote: "${template.name} ${reaction.emote}"`);
         sendOutput(ctx.playerId, `\n${template.name} ${reaction.emote}`);
       }
 
@@ -135,6 +140,7 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
         if (reaction.emote) {
           await new Promise(resolve => setTimeout(resolve, 300));
         }
+        console.log(`[NPC Speech] Sending response: "${template.name} says, ${reaction.response}"`);
         sendOutput(ctx.playerId, `${template.name} says, "${reaction.response}"`);
       }
     } else {
@@ -147,11 +153,13 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
         'acknowledges you with a nod.',
       ];
       const fallback = fallbackEmotes[Math.floor(Math.random() * fallbackEmotes.length)];
+      console.log(`[NPC Speech] Using fallback: "${template.name} ${fallback}"`);
       sendOutput(ctx.playerId, `\n${template.name} ${fallback}`);
     }
   } catch (error) {
     // Fallback on error - NPC still reacts
     console.error(`[NPC Speech] Error for ${template.name}:`, error);
+    console.log(`[NPC Speech] Error fallback: "${template.name} looks up at you."`);
     sendOutput(ctx.playerId, `\n${template.name} looks up at you.`);
   }
 }
