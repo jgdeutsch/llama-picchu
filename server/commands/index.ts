@@ -12,6 +12,7 @@ import { resourceManager } from '../managers/resourceManager';
 import { buildingManager } from '../managers/buildingManager';
 import { creativeManager } from '../managers/creativeManager';
 import { npcSocialManager } from '../managers/npcSocialManager';
+import { appearanceManager } from '../managers/appearanceManager';
 import { getDatabase, playerQueries } from '../database';
 import { processMovementCommand } from './movement';
 import { processInteractionCommand } from './interaction';
@@ -239,6 +240,11 @@ export function processCommand(playerId: number, rawInput: string): void {
     case 'rent':
     case 'stay':
       processRent(context);
+      break;
+    case 'wash':
+    case 'clean':
+    case 'bathe':
+      processWash(context);
       break;
 
     // Training
@@ -1018,6 +1024,150 @@ Your recovery rate is doubled while you rest here.
         messageType: 'normal',
       });
     }
+  }
+}
+
+function processWash(ctx: CommandContext): void {
+  // Get water sources in this room
+  const waterSources = appearanceManager.getWaterSourcesInRoom(ctx.roomId);
+
+  if (waterSources.length === 0) {
+    sendOutput(ctx.playerId, '\nThere is no water source here to wash in.\nTry looking for a river, well, or public trough.\n');
+    return;
+  }
+
+  // Get current appearance
+  const appearance = appearanceManager.getPlayerAppearance(ctx.playerId);
+
+  // If player specified a source type
+  if (ctx.args.length > 0) {
+    const targetWord = ctx.args.join(' ').toLowerCase();
+
+    // Find matching source
+    const matchedSource = waterSources.find(s =>
+      s.sourceType.toLowerCase().includes(targetWord) ||
+      s.description.toLowerCase().includes(targetWord) ||
+      targetWord.includes(s.sourceType.replace('_', ' '))
+    );
+
+    if (!matchedSource) {
+      sendOutput(ctx.playerId, `You don't see "${ctx.args.join(' ')}" here to wash in.`);
+      return;
+    }
+
+    // Check if private and owner is nearby
+    if (matchedSource.ownerNpcId) {
+      const npcsInRoom = worldManager.getNpcsInRoomWithTemplates(ctx.roomId);
+      const ownerNpc = npcsInRoom.find(n => n.template.id === matchedSource.ownerNpcId);
+
+      if (ownerNpc) {
+        // Owner is present - check relationship
+        const db = getDatabase();
+        const relationship = db.prepare(`
+          SELECT capital FROM social_capital
+          WHERE player_id = ? AND npc_id = ?
+        `).get(ctx.playerId, matchedSource.ownerNpcId) as { capital: number } | undefined;
+
+        if (!relationship || relationship.capital < 10) {
+          sendOutput(ctx.playerId, `\n${ownerNpc.template.name} gives you a sharp look.\n"That's my water. Ask before you use it, stranger."\n`);
+          return;
+        }
+        // If they have good relationship, let them use it
+        sendOutput(ctx.playerId, `${ownerNpc.template.name} nods permission.`);
+      }
+    }
+
+    // Do the wash
+    const result = appearanceManager.wash(ctx.playerId, matchedSource.id);
+    if (result.success) {
+      let cleanMsg = result.message;
+      if (appearance.bloodiness > 0) {
+        cleanMsg += ' The blood washes away.';
+      }
+      cleanMsg += `\n\n[Cleanliness: ${appearance.cleanliness} → ${result.newCleanliness}]`;
+      sendOutput(ctx.playerId, `\n${cleanMsg}\n`);
+
+      // Notify others
+      const playersInRoom = worldManager.getPlayersInRoom(ctx.roomId);
+      for (const otherId of playersInRoom) {
+        if (otherId !== ctx.playerId) {
+          connectionManager.sendToPlayer(otherId, {
+            type: 'output',
+            text: `${ctx.playerName} washes in the ${matchedSource.sourceType.replace('_', ' ')}.`,
+            messageType: 'normal',
+          });
+        }
+      }
+    } else {
+      sendOutput(ctx.playerId, result.message);
+    }
+    return;
+  }
+
+  // No source specified - list available sources
+  if (waterSources.length === 1) {
+    // Auto-use the only source
+    const source = waterSources[0];
+
+    // Check if private and owner is nearby (same logic as above)
+    if (source.ownerNpcId) {
+      const npcsInRoom = worldManager.getNpcsInRoomWithTemplates(ctx.roomId);
+      const ownerNpc = npcsInRoom.find(n => n.template.id === source.ownerNpcId);
+
+      if (ownerNpc) {
+        const db = getDatabase();
+        const relationship = db.prepare(`
+          SELECT capital FROM social_capital
+          WHERE player_id = ? AND npc_id = ?
+        `).get(ctx.playerId, source.ownerNpcId) as { capital: number } | undefined;
+
+        if (!relationship || relationship.capital < 10) {
+          sendOutput(ctx.playerId, `\n${ownerNpc.template.name} gives you a sharp look.\n"That's my water. Ask before you use it, stranger."\n`);
+          return;
+        }
+        sendOutput(ctx.playerId, `${ownerNpc.template.name} nods permission.`);
+      }
+    }
+
+    const result = appearanceManager.wash(ctx.playerId, source.id);
+    if (result.success) {
+      let cleanMsg = result.message;
+      if (appearance.bloodiness > 0) {
+        cleanMsg += ' The blood washes away.';
+      }
+      cleanMsg += `\n\n[Cleanliness: ${appearance.cleanliness} → ${result.newCleanliness}]`;
+      sendOutput(ctx.playerId, `\n${cleanMsg}\n`);
+
+      // Notify others
+      const playersInRoom = worldManager.getPlayersInRoom(ctx.roomId);
+      for (const otherId of playersInRoom) {
+        if (otherId !== ctx.playerId) {
+          connectionManager.sendToPlayer(otherId, {
+            type: 'output',
+            text: `${ctx.playerName} washes in the ${source.sourceType.replace('_', ' ')}.`,
+            messageType: 'normal',
+          });
+        }
+      }
+    } else {
+      sendOutput(ctx.playerId, result.message);
+    }
+  } else {
+    // Multiple sources - list them
+    const lines = [
+      '\nYou see the following water sources:',
+      '',
+    ];
+    for (const source of waterSources) {
+      const ownership = source.ownerNpcId ? ' (private)' : ' (public)';
+      lines.push(`  • ${source.sourceType.replace('_', ' ')}${ownership}`);
+      lines.push(`    ${source.description}`);
+    }
+    lines.push('');
+    lines.push('Use "wash <source>" to wash at a specific source.');
+    lines.push(`Your current cleanliness: ${appearance.cleanliness}/100 (${appearance.cleanlinessDesc})`);
+    lines.push('');
+    sendOutput(ctx.playerId, lines.join('\n'));
   }
 }
 

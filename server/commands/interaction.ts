@@ -5,6 +5,7 @@ import { playerManager } from '../managers/playerManager';
 import { npcManager } from '../managers/npcManager';
 import { questManager } from '../managers/questManager';
 import { npcLifeManager } from '../managers/npcLifeManager';
+import { appearanceManager } from '../managers/appearanceManager';
 import { getDatabase, playerQueries } from '../database';
 import { itemTemplates } from '../data/items';
 import { npcTemplates, getNpcPersonalityPrompt } from '../data/npcs';
@@ -147,10 +148,19 @@ async function processLookAt(ctx: CommandContext): Promise<void> {
       const classDef = playerManager.getClassDefinition(p.class_id);
       const equipmentDesc = buildEquipmentDescription(p.id, p.id === ctx.playerId);
       if (p.id === ctx.playerId) {
-        // Looking at yourself
-        sendOutput(ctx.playerId, `\nYou examine yourself. You are ${p.name}, a level ${p.level} ${classDef?.name || 'llama'}.\n${equipmentDesc}\n`);
+        // Looking at yourself - include appearance/cleanliness
+        const appearanceDesc = appearanceManager.buildAppearanceDescription(p.id);
+        sendOutput(ctx.playerId, `\nYou examine yourself. You are ${p.name}, a level ${p.level} ${classDef?.name || 'llama'}.\n${equipmentDesc}\n\n${appearanceDesc}\n`);
       } else {
-        sendOutput(ctx.playerId, `\nYou see ${p.name}, a level ${p.level} ${classDef?.name || 'llama'}.\n${equipmentDesc}\n`);
+        // Looking at another player - mention if they're dirty/bloody
+        const otherAppearance = appearanceManager.getPlayerAppearance(p.id);
+        let appearanceNote = '';
+        if (otherAppearance.bloodiness > 30) {
+          appearanceNote = `\nThey ${otherAppearance.bloodinessDesc}.`;
+        } else if (otherAppearance.cleanliness < 40) {
+          appearanceNote = `\nThey look ${otherAppearance.cleanlinessDesc}.`;
+        }
+        sendOutput(ctx.playerId, `\nYou see ${p.name}, a level ${p.level} ${classDef?.name || 'llama'}.\n${equipmentDesc}${appearanceNote}\n`);
       }
       return;
     }
@@ -772,6 +782,12 @@ function buildPlayerAppearanceDescription(playerId: number): string {
   if (equipment.back) {
     const item = itemTemplates.find(i => i.id === equipment.back);
     if (item) parts.push(`${item.name} draped over shoulders`);
+  }
+
+  // Add cleanliness/bloodiness context
+  const appearanceContext = appearanceManager.buildNpcAppearanceContext(playerId);
+  if (appearanceContext) {
+    parts.push(appearanceContext);
   }
 
   if (parts.length === 0) {

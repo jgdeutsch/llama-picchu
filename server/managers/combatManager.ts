@@ -3,6 +3,7 @@ import { getDatabase, playerQueries, roomNpcQueries } from '../database';
 import { connectionManager } from './connectionManager';
 import { worldManager } from './worldManager';
 import { playerManager } from './playerManager';
+import { appearanceManager } from './appearanceManager';
 import { npcTemplates } from '../data/npcs';
 import { itemTemplates } from '../data/items';
 import {
@@ -283,6 +284,16 @@ class CombatManager {
 
         // Update player HP
         db.prepare('UPDATE players SET hp = ? WHERE id = ?').run(newPlayerHp, playerId);
+
+        // Add blood from combat damage (both taking and dealing melee damage)
+        if (npcDamage.isHit && npcDamage.damage > 0) {
+          // Taking damage splatters blood on you
+          appearanceManager.addBlood(playerId, Math.min(30, npcDamage.damage * 2));
+        }
+        if (playerDamage.isHit && playerDamage.damage > 0) {
+          // Dealing melee damage also gets some blood on you
+          appearanceManager.addBlood(playerId, Math.min(15, playerDamage.damage));
+        }
 
         // Send round result
         connectionManager.sendToPlayer(playerId, {

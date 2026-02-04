@@ -693,6 +693,55 @@ export function initializeDatabase(): void {
     INSERT OR IGNORE INTO protected_names (name, reason) VALUES ('Fee', 'npc');
   `);
 
+  // ============================================
+  // FROBARK: PLAYER APPEARANCE & CLEANLINESS SYSTEM
+  // KCD2-style clothing layers, dirt accumulation, blood stains
+  // ============================================
+
+  // Player appearance state - cleanliness, bloodiness, last washed
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS player_appearance (
+      player_id INTEGER PRIMARY KEY,
+      cleanliness INTEGER DEFAULT 70,         -- 0=filthy, 100=pristine (start slightly travel-worn)
+      bloodiness INTEGER DEFAULT 0,           -- 0=clean, 100=drenched in blood
+      last_washed DATETIME,
+      last_combat DATETIME,
+      FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Add dirt_level to rooms (migration for existing DBs)
+  try {
+    database.exec(`ALTER TABLE room_items ADD COLUMN dirt_level TEXT DEFAULT 'clean'`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  // Water sources for washing
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS water_sources (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      room_id TEXT NOT NULL,
+      source_type TEXT NOT NULL,              -- 'public_trough', 'well', 'river', 'private_basin', 'rain'
+      owner_npc_id INTEGER,                   -- NULL for public, NPC id for private
+      quality TEXT DEFAULT 'clean',           -- 'clean', 'murky', 'dirty'
+      cleanliness_bonus INTEGER DEFAULT 50,   -- How much cleanliness restored
+      description TEXT
+    )
+  `);
+
+  // Seed some water sources
+  database.exec(`
+    INSERT OR IGNORE INTO water_sources (id, room_id, source_type, owner_npc_id, quality, cleanliness_bonus, description)
+    VALUES
+      (1, 'the_inn', 'public_trough', NULL, 'clean', 40, 'A wooden trough of clean water sits outside the inn.'),
+      (2, 'village_square', 'public_trough', NULL, 'murky', 30, 'The old fountain basin holds stagnant water.'),
+      (3, 'river_crossing', 'river', NULL, 'clean', 60, 'The river flows cool and clear here.'),
+      (4, 'forest_stream', 'river', NULL, 'clean', 60, 'A crystal-clear forest stream.'),
+      (5, 'farmlands', 'well', 7, 'clean', 50, 'Farmer Rutherford''s well provides fresh water.'),
+      (6, 'blacksmith_forge', 'private_basin', 10, 'murky', 35, 'A water barrel sits near the forge.')
+  `);
+
   console.log('FROBARK database initialized successfully');
 }
 
