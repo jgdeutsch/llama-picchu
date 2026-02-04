@@ -688,30 +688,23 @@ function handleGameCommand(socket: net.Socket, conn: TelnetConnection, input: st
   sendPrompt(socket);
 }
 
-// Wrapper to capture command output
-function processCommandWithOutput(
-  playerId: number,
-  command: string,
-  outputHandler: (text: string, messageType?: string) => void
-): void {
-  // Temporarily override the connection manager's sendToPlayer
-  const originalSend = require('./managers/connectionManager').connectionManager.sendToPlayer;
-
+// Set up persistent telnet sendToPlayer handler
+// This must persist for async operations (NPC reactions, etc.)
+function setupTelnetSendToPlayer(): void {
   require('./managers/connectionManager').connectionManager.sendToPlayer = (
     targetId: number,
     message: any
   ) => {
-    if (targetId === playerId) {
-      // Messages to the current player
+    const socket = playerSockets.get(targetId);
+    if (socket) {
+      // Only send if there's actual text content
       if (message.type === 'output' && message.text) {
-        outputHandler(message.text, message.messageType);
-      }
-      // Ignore other message types (room_update, etc.) for telnet - they're for WebSocket clients
-    } else {
-      // For messages to other players, use the telnet system
-      const socket = playerSockets.get(targetId);
-      if (socket) {
-        // Only send if there's actual text content
+        sendLine(socket, message.text);
+        const conn = connections.get(socket);
+        if (conn?.state === 'playing') {
+          sendPrompt(socket);
+        }
+      } else {
         const textContent = message.text || message.message;
         if (textContent) {
           sendLine(socket, textContent);
@@ -723,13 +716,16 @@ function processCommandWithOutput(
       }
     }
   };
+}
 
-  try {
-    processCommand(playerId, command);
-  } finally {
-    // Restore original
-    require('./managers/connectionManager').connectionManager.sendToPlayer = originalSend;
-  }
+// Wrapper to capture command output
+function processCommandWithOutput(
+  playerId: number,
+  command: string,
+  outputHandler: (text: string, messageType?: string) => void
+): void {
+  // Just process the command - sendToPlayer is now permanently set up for telnet
+  processCommand(playerId, command);
 }
 
 // Handle logout
@@ -811,6 +807,9 @@ async function main(): Promise<void> {
 
   // Initialize NPCs
   npcManager.initializeWorldNpcs();
+
+  // Set up telnet message handler (must persist for async operations)
+  setupTelnetSendToPlayer();
 
   // Start game loop
   gameLoop.start();
