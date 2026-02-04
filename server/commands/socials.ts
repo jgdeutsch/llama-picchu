@@ -997,9 +997,21 @@ async function triggerNpcSoloSocialReactions(ctx: CommandContext, social: Social
         }
         sendOutput(ctx.playerId, `${template.name} says, "${reaction.response}"`);
       }
+    } else {
+      // Fallback: NPC always does something minimal
+      const fallbackEmotes = [
+        'glances over.',
+        'looks up briefly.',
+        'notices but says nothing.',
+        'raises an eyebrow.',
+      ];
+      const fallback = fallbackEmotes[Math.floor(Math.random() * fallbackEmotes.length)];
+      sendOutput(ctx.playerId, `\n${template.name} ${fallback}`);
     }
   } catch (error) {
     console.error(`[Solo Social NPC Reaction] Error:`, error);
+    // Fallback on error
+    sendOutput(ctx.playerId, `\n${template.name} glances your way.`);
   }
 }
 

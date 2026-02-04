@@ -133,10 +133,22 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
         3, // Medium importance
         0  // Neutral valence by default
       );
+    } else {
+      // Fallback: NPC always does something minimal
+      const fallbackEmotes = [
+        'glances up briefly.',
+        'looks over.',
+        'pauses for a moment.',
+        'tilts their head slightly.',
+        'acknowledges you with a nod.',
+      ];
+      const fallback = fallbackEmotes[Math.floor(Math.random() * fallbackEmotes.length)];
+      sendOutput(ctx.playerId, `\n${template.name} ${fallback}`);
     }
   } catch (error) {
-    // Silently fail - don't disrupt the game if Gemini is down
+    // Fallback on error - NPC still reacts
     console.error(`[NPC Speech] Error for ${template.name}:`, error);
+    sendOutput(ctx.playerId, `\n${template.name} looks up at you.`);
   }
 }
 
