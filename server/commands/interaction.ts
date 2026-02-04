@@ -587,6 +587,17 @@ async function buildConversationContext(
   // Get recent conversation history with this NPC
   const conversationHistory = getConversationHistory(playerId, npcTemplateId);
 
+  // Get player info for appearance context
+  const playerInfo = db.prepare(`
+    SELECT level, class_id, gold FROM players WHERE id = ?
+  `).get(playerId) as { level: number; class_id: number; gold: number } | undefined;
+
+  const classDef = playerManager.getClassDefinition(playerInfo?.class_id || 1);
+  const playerClass = classDef?.name || 'adventurer';
+
+  // Build player appearance description from equipment
+  const playerAppearance = buildPlayerAppearanceDescription(playerId);
+
   // Build the context object
   const context: ConversationContext = {
     npcId: npcTemplateId,
@@ -598,6 +609,10 @@ async function buildConversationContext(
     npcMood: npcState?.mood || 'neutral',
     npcLocation: roomId,
     playerName: playerName,
+    playerLevel: playerInfo?.level || 1,
+    playerClass: playerClass,
+    playerAppearance: playerAppearance,
+    playerGold: playerInfo?.gold || 0,
     playerSocialCapital: socialData?.capital || 0,
     trustLevel: socialData?.trust_level || 'stranger',
     recentMemories: memories.recent,
@@ -609,6 +624,57 @@ async function buildConversationContext(
   };
 
   return context;
+}
+
+// Build a description of what the player looks like based on their equipment
+function buildPlayerAppearanceDescription(playerId: number): string {
+  const equipment = playerManager.getEquipment(playerId);
+  const parts: string[] = [];
+
+  // Check each slot and describe what's there (or missing)
+  if (equipment.head) {
+    const item = itemTemplates.find(i => i.id === equipment.head);
+    if (item) parts.push(`wearing ${item.name} on head`);
+  }
+
+  if (equipment.body) {
+    const item = itemTemplates.find(i => i.id === equipment.body);
+    if (item) parts.push(`wearing ${item.name}`);
+  } else {
+    parts.push('bare-chested or in a simple shirt');
+  }
+
+  if (equipment.legs) {
+    const item = itemTemplates.find(i => i.id === equipment.legs);
+    if (item) parts.push(`${item.name} on legs`);
+  } else {
+    parts.push('worn/basic trousers');
+  }
+
+  if (equipment.feet) {
+    const item = itemTemplates.find(i => i.id === equipment.feet);
+    if (item) parts.push(`${item.name} on feet`);
+  } else {
+    parts.push('barefoot or in worn boots');
+  }
+
+  if (equipment.mainHand) {
+    const item = itemTemplates.find(i => i.id === equipment.mainHand);
+    if (item) parts.push(`carrying ${item.name}`);
+  } else {
+    parts.push('unarmed');
+  }
+
+  if (equipment.back) {
+    const item = itemTemplates.find(i => i.id === equipment.back);
+    if (item) parts.push(`${item.name} draped over shoulders`);
+  }
+
+  if (parts.length === 0) {
+    return 'Wearing simple, worn clothes. Looks like they could use some upgrades.';
+  }
+
+  return parts.join(', ') + '.';
 }
 
 // Build a description of what's happening nearby for context
