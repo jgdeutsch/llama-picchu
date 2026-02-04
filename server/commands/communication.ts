@@ -121,6 +121,7 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
 
     // Check if we got a meaningful reaction
     const hasReaction = reaction && (reaction.emote || reaction.response);
+    console.log(`[NPC Speech] ${template.name} reaction:`, JSON.stringify(reaction), `hasReaction: ${hasReaction}`);
 
     if (hasReaction) {
       // Send emote if present
