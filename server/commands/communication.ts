@@ -8,6 +8,19 @@ import { generateNpcSpeechReaction, addNpcMemory } from '../services/geminiServi
 import { npcTemplates, getNpcPersonalityPrompt } from '../data/npcs';
 import type { CommandContext } from './index';
 
+// Track the last NPC each player interacted with (for "reply" command)
+const lastNpcInteraction: Map<number, { npcId: number; npcName: string; roomId: string }> = new Map();
+
+// Get the last NPC a player spoke to
+export function getLastNpcInteraction(playerId: number): { npcId: number; npcName: string; roomId: string } | undefined {
+  return lastNpcInteraction.get(playerId);
+}
+
+// Update the last NPC a player spoke to
+export function setLastNpcInteraction(playerId: number, npcId: number, npcName: string, roomId: string): void {
+  lastNpcInteraction.set(playerId, { npcId, npcName, roomId });
+}
+
 export function processCommunicationCommand(ctx: CommandContext, action: string): void {
   switch (action) {
     case 'say':
@@ -77,10 +90,65 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
 
   if (friendlyNpcs.length === 0) return;
 
-  // Pick one random NPC to react (avoid spamming with all NPCs responding)
-  const npc = friendlyNpcs[Math.floor(Math.random() * friendlyNpcs.length)];
-  const template = npcTemplates.find(t => t.id === npc.npcTemplateId);
-  if (!template) return;
+  // Check if any NPC is specifically mentioned by name in the message
+  const messageLower = message.toLowerCase();
+  let mentionedNpc: typeof friendlyNpcs[0] | null = null;
+  let mentionedTemplate: typeof npcTemplates[0] | null = null;
+
+  for (const npc of friendlyNpcs) {
+    const template = npcTemplates.find(t => t.id === npc.npcTemplateId);
+    if (!template) continue;
+
+    // Check if NPC's first name or full name is mentioned
+    const firstName = template.name.split(' ')[0].toLowerCase();
+    const fullName = template.name.toLowerCase();
+
+    if (messageLower.includes(firstName) || messageLower.includes(fullName)) {
+      mentionedNpc = npc;
+      mentionedTemplate = template;
+      console.log(`[NPC Speech] "${template.name}" was mentioned by name in the message`);
+      break;
+    }
+  }
+
+  // If an NPC was mentioned, they ALWAYS respond first
+  // Otherwise, pick a random NPC
+  const primaryNpc = mentionedNpc || friendlyNpcs[Math.floor(Math.random() * friendlyNpcs.length)];
+  const primaryTemplate = mentionedTemplate || npcTemplates.find(t => t.id === primaryNpc.npcTemplateId);
+  if (!primaryTemplate) return;
+
+  // Mark this as a direct interaction if they were mentioned by name
+  const wasMentioned = mentionedNpc !== null;
+
+  // Generate reaction for primary NPC
+  await generateAndSendNpcReaction(ctx, primaryNpc, primaryTemplate, message, wasMentioned);
+
+  // If the message doesn't mention anyone specific and there are multiple NPCs,
+  // there's a chance another NPC might also chime in
+  if (!wasMentioned && friendlyNpcs.length > 1 && Math.random() < 0.3) {
+    const otherNpcs = friendlyNpcs.filter(n => n.npcTemplateId !== primaryNpc.npcTemplateId);
+    if (otherNpcs.length > 0) {
+      const secondaryNpc = otherNpcs[Math.floor(Math.random() * otherNpcs.length)];
+      const secondaryTemplate = npcTemplates.find(t => t.id === secondaryNpc.npcTemplateId);
+      if (secondaryTemplate) {
+        // Small delay before secondary NPC responds
+        setTimeout(() => {
+          generateAndSendNpcReaction(ctx, secondaryNpc, secondaryTemplate, message, false);
+        }, 1500);
+      }
+    }
+  }
+}
+
+// Generate and send an NPC's reaction to player speech
+async function generateAndSendNpcReaction(
+  ctx: CommandContext,
+  npc: { id: number; npcTemplateId: number },
+  template: typeof npcTemplates[0],
+  message: string,
+  wasMentioned: boolean
+): Promise<void> {
+  const db = getDatabase();
 
   // Get NPC's relationship with player
   const relationship = db.prepare(`
@@ -130,14 +198,18 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
     if (hasReaction) {
       // Send emote if present - use 2nd person POV for the target player
       if (reaction.emote) {
-        console.log(`[NPC Speech] Sending emote (2nd person): "${reaction.emote.second}"`);
-        sendOutput(ctx.playerId, `\n${reaction.emote.second}`);
+        // Capitalize and add NPC name prefix
+        const emote2nd = reaction.emote.second.charAt(0).toUpperCase() + reaction.emote.second.slice(1);
+        const emote3rd = reaction.emote.third.charAt(0).toUpperCase() + reaction.emote.third.slice(1);
+
+        console.log(`[NPC Speech] Sending emote (2nd person): "${template.name} ${emote2nd}"`);
+        sendOutput(ctx.playerId, `\n${template.name} ${emote2nd}`);
 
         // Send 3rd person to other players in room
         const playersInRoom = worldManager.getPlayersInRoom(ctx.roomId);
         for (const otherId of playersInRoom) {
           if (otherId !== ctx.playerId) {
-            sendOutput(otherId, `\n${reaction.emote.third}`);
+            sendOutput(otherId, `\n${template.name} ${emote3rd}`);
           }
         }
       }
@@ -158,6 +230,9 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
             sendOutput(otherId, `${template.name} says, "${reaction.response}"`);
           }
         }
+
+        // Track this NPC as the last one the player talked to (for "reply" command)
+        setLastNpcInteraction(ctx.playerId, npc.npcTemplateId, template.name, ctx.roomId);
       }
     } else {
       // Fallback: NPC always does something minimal
@@ -247,15 +322,53 @@ function processTell(ctx: CommandContext): void {
   const targetName = ctx.args[0];
   const message = ctx.args.slice(1).join(' ');
 
-  // Find target player
+  if (!message) {
+    sendOutput(ctx.playerId, 'Tell them what? Use: tell <name> <message>');
+    return;
+  }
+
+  // First check if this is an NPC in the room
   const db = getDatabase();
+  const npcsInRoom = roomNpcQueries.getByRoom(db).all(ctx.roomId) as {
+    id: number;
+    npcTemplateId: number;
+  }[];
+
+  const targetNameLower = targetName.toLowerCase();
+  let matchedNpc: typeof npcsInRoom[0] | null = null;
+  let matchedTemplate: typeof npcTemplates[0] | null = null;
+
+  for (const npc of npcsInRoom) {
+    const template = npcTemplates.find(t => t.id === npc.npcTemplateId);
+    if (!template) continue;
+
+    const firstName = template.name.split(' ')[0].toLowerCase();
+    const fullName = template.name.toLowerCase();
+
+    if (firstName === targetNameLower || fullName.startsWith(targetNameLower)) {
+      matchedNpc = npc;
+      matchedTemplate = template;
+      break;
+    }
+  }
+
+  // If we found an NPC, tell them directly
+  if (matchedNpc && matchedTemplate) {
+    sendOutput(ctx.playerId, `You tell ${matchedTemplate.name}, "${message}"`, 'chat');
+
+    // Generate NPC response directly to this player
+    triggerDirectNpcResponse(ctx, matchedNpc, matchedTemplate, message);
+    return;
+  }
+
+  // Otherwise, try to find a player
   const targetPlayer = playerQueries.findByName(db).get(targetName) as {
     id: number;
     name: string;
   } | undefined;
 
   if (!targetPlayer) {
-    sendOutput(ctx.playerId, `No player named "${targetName}" found.`);
+    sendOutput(ctx.playerId, `No one named "${targetName}" is here.`);
     return;
   }
 
@@ -274,6 +387,121 @@ function processTell(ctx: CommandContext): void {
     from: ctx.playerName,
     message,
   });
+}
+
+// Generate a direct NPC response when a player uses "tell" to speak directly to them
+async function triggerDirectNpcResponse(
+  ctx: CommandContext,
+  npc: { id: number; npcTemplateId: number },
+  template: typeof npcTemplates[0],
+  message: string
+): Promise<void> {
+  const db = getDatabase();
+
+  // Get NPC's relationship with player
+  const relationship = db.prepare(`
+    SELECT trust_level FROM social_capital
+    WHERE player_id = ? AND npc_id = ?
+  `).get(ctx.playerId, npc.npcTemplateId) as { trust_level: string } | undefined;
+
+  const trustLevel = relationship?.trust_level || 'stranger';
+  const personality = getNpcPersonalityPrompt(npc.npcTemplateId);
+
+  // Get NPC's current task
+  const npcState = db.prepare(`
+    SELECT current_task FROM npc_state
+    WHERE npc_template_id = ?
+  `).get(npc.npcTemplateId) as { current_task: string | null } | undefined;
+
+  console.log(`[NPC Tell] ${ctx.playerName} tells ${template.name}: "${message}"`);
+
+  try {
+    const reaction = await generateNpcSpeechReaction(
+      npc.npcTemplateId,
+      template.name,
+      personality,
+      npcState?.current_task || null,
+      ctx.playerId,
+      ctx.playerName,
+      message,
+      trustLevel
+    );
+
+    // Record this interaction in NPC memory
+    addNpcMemory(
+      npc.npcTemplateId,
+      ctx.playerId,
+      'interaction',
+      `${ctx.playerName} privately told me: "${message.substring(0, 80)}"`,
+      4, // Slightly higher importance for direct conversation
+      0
+    );
+
+    // Track this NPC for "reply" command
+    setLastNpcInteraction(ctx.playerId, npc.npcTemplateId, template.name, ctx.roomId);
+
+    if (reaction && reaction.response) {
+      // Send emote if present
+      if (reaction.emote) {
+        const emote2nd = reaction.emote.second.charAt(0).toUpperCase() + reaction.emote.second.slice(1);
+        sendOutput(ctx.playerId, `\n${template.name} ${emote2nd}`);
+      }
+
+      // Send response only to the player who asked
+      sendOutput(ctx.playerId, `${template.name} tells you, "${reaction.response}"`);
+    } else {
+      // Minimal acknowledgment
+      sendOutput(ctx.playerId, `\n${template.name} nods at you but doesn't respond.`);
+    }
+  } catch (error) {
+    console.error(`[NPC Tell] Error:`, error);
+    sendOutput(ctx.playerId, `\n${template.name} seems distracted and doesn't respond.`);
+  }
+}
+
+// Process the "reply" command - continues conversation with last NPC
+export function processReply(ctx: CommandContext): void {
+  const lastInteraction = getLastNpcInteraction(ctx.playerId);
+
+  if (!lastInteraction) {
+    sendOutput(ctx.playerId, "You haven't spoken to anyone recently.");
+    return;
+  }
+
+  const message = ctx.args.join(' ');
+  if (!message) {
+    sendOutput(ctx.playerId, `Reply what to ${lastInteraction.npcName}? Use: reply <message>`);
+    return;
+  }
+
+  // Check if we're still in the same room as the NPC
+  if (ctx.roomId !== lastInteraction.roomId) {
+    sendOutput(ctx.playerId, `${lastInteraction.npcName} isn't here anymore.`);
+    return;
+  }
+
+  // Find the NPC in the room
+  const db = getDatabase();
+  const npcsInRoom = roomNpcQueries.getByRoom(db).all(ctx.roomId) as {
+    id: number;
+    npcTemplateId: number;
+  }[];
+
+  const npc = npcsInRoom.find(n => n.npcTemplateId === lastInteraction.npcId);
+  if (!npc) {
+    sendOutput(ctx.playerId, `${lastInteraction.npcName} isn't here anymore.`);
+    return;
+  }
+
+  const template = npcTemplates.find(t => t.id === npc.npcTemplateId);
+  if (!template) {
+    sendOutput(ctx.playerId, `${lastInteraction.npcName} isn't here anymore.`);
+    return;
+  }
+
+  // Send the reply
+  sendOutput(ctx.playerId, `You tell ${template.name}, "${message}"`, 'chat');
+  triggerDirectNpcResponse(ctx, npc, template, message);
 }
 
 function processWho(ctx: CommandContext): void {

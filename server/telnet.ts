@@ -697,6 +697,26 @@ function setupTelnetSendToPlayer(): void {
   ) => {
     const socket = playerSockets.get(targetId);
     if (socket) {
+      // Handle specific message types with proper formatting
+      if (message.type === 'player_left') {
+        const directionText = message.direction ? ` ${message.direction}` : '';
+        sendLine(socket, `\r\n${message.playerName} leaves${directionText}.`);
+        const conn = connections.get(socket);
+        if (conn?.state === 'playing') {
+          sendPrompt(socket);
+        }
+        return;
+      }
+
+      if (message.type === 'player_entered') {
+        sendLine(socket, `\r\n${message.playerName} has arrived.`);
+        const conn = connections.get(socket);
+        if (conn?.state === 'playing') {
+          sendPrompt(socket);
+        }
+        return;
+      }
+
       // Only send if there's actual text content
       if (message.type === 'output' && message.text) {
         sendLine(socket, message.text);
@@ -717,6 +737,7 @@ function setupTelnetSendToPlayer(): void {
     }
   };
 }
+
 
 // Wrapper to capture command output
 function processCommandWithOutput(

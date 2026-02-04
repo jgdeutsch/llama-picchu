@@ -2,6 +2,7 @@
 import { connectionManager } from '../managers/connectionManager';
 import { playerManager } from '../managers/playerManager';
 import { worldManager } from '../managers/worldManager';
+import { getPlayerLastSeen } from '../managers/playerTracker';
 import { combatManager } from '../managers/combatManager';
 import { npcManager } from '../managers/npcManager';
 import { questManager } from '../managers/questManager';
@@ -15,7 +16,7 @@ import { getDatabase, playerQueries } from '../database';
 import { processMovementCommand } from './movement';
 import { processInteractionCommand } from './interaction';
 import { processCombatCommand } from './combat';
-import { processCommunicationCommand } from './communication';
+import { processCommunicationCommand, processReply } from './communication';
 import { processCharacterCommand } from './character';
 import { processSkillCommand } from './skills';
 import { processShopCommand } from './shop';
@@ -193,6 +194,13 @@ export function processCommand(playerId: number, rawInput: string): void {
       break;
     case 'who':
       processWho(context);
+      break;
+    case 'where':
+      processWhere(context);
+      break;
+    case 'reply':
+    case 'r':
+      processReplyCmd(context);
       break;
 
     // Economy
@@ -720,6 +728,71 @@ function processTell(ctx: CommandContext): void {
 
 function processWho(ctx: CommandContext): void {
   processCommunicationCommand(ctx, 'who');
+}
+
+function processReplyCmd(ctx: CommandContext): void {
+  if (ctx.args.length === 0) {
+    sendOutput(ctx.playerId, 'Reply with what? Use: reply <message>');
+    return;
+  }
+  processReply(ctx);
+}
+
+function processWhere(ctx: CommandContext): void {
+  if (ctx.args.length === 0) {
+    sendOutput(ctx.playerId, 'Where did who go? Use: where <player name>');
+    return;
+  }
+
+  const targetName = ctx.args.join(' ');
+  const db = getDatabase();
+
+  // First, try to find the player
+  const player = db.prepare(`SELECT id, name, current_room FROM players WHERE name LIKE ?`).get(`%${targetName}%`) as {
+    id: number;
+    name: string;
+    current_room: string;
+  } | undefined;
+
+  if (!player) {
+    sendOutput(ctx.playerId, `You don't know anyone named "${targetName}".`);
+    return;
+  }
+
+  // Check if they're online
+  if (connectionManager.isPlayerConnected(player.id)) {
+    // They're online - where are they now?
+    const room = worldManager.getRoom(player.current_room);
+    sendOutput(ctx.playerId, `\n${player.name} is currently somewhere in ${room?.area || 'Gamehenge'}.\n`);
+    return;
+  }
+
+  // They're offline - check last seen tracking
+  const lastSeen = getPlayerLastSeen(player.name);
+
+  if (lastSeen) {
+    const room = worldManager.getRoom(lastSeen.roomId);
+    const roomName = room?.name || 'an unknown place';
+    const timeSince = Math.floor((Date.now() - lastSeen.timestamp) / 60000); // minutes
+
+    let timeStr: string;
+    if (timeSince < 1) {
+      timeStr = 'just moments ago';
+    } else if (timeSince < 60) {
+      timeStr = `${timeSince} minute${timeSince !== 1 ? 's' : ''} ago`;
+    } else {
+      const hours = Math.floor(timeSince / 60);
+      timeStr = `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+    }
+
+    if (lastSeen.direction) {
+      sendOutput(ctx.playerId, `\n${player.name} was last seen in ${roomName}, heading ${lastSeen.direction}, ${timeStr}.\n`);
+    } else {
+      sendOutput(ctx.playerId, `\n${player.name} was last seen in ${roomName}, ${timeStr}.\n`);
+    }
+  } else {
+    sendOutput(ctx.playerId, `\n${player.name} hasn't been seen around lately.\n`);
+  }
 }
 
 function processBuy(ctx: CommandContext): void {
@@ -1417,10 +1490,12 @@ function processHelp(ctx: CommandContext): void {
 ╠════════════════════════════════════════════════════════╣
 ║ COMMUNICATION                                          ║
 ║   say/' <message> - Speak to the room                  ║
+║   tell <name> <msg> - Speak directly to NPC or player  ║
+║   reply/r <message> - Reply to the last NPC you spoke  ║
 ║   shout <message> - Shout across the area              ║
 ║   gossip/. <message> - Chat with all players           ║
-║   tell/t <player> <message> - Private message          ║
 ║   who - List online players                            ║
+║   where <player> - See where someone went              ║
 ╠════════════════════════════════════════════════════════╣
 ║ JOBS & ECONOMY                                         ║
 ║   jobs - See available work at your location           ║

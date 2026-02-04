@@ -7,6 +7,8 @@ import { npcTemplates } from '../data/npcs';
 import type { RoomTemplate, RoomState, Direction, RoomItemInstance, RoomNpcInstance } from '../../shared/types/room';
 import type { ServerMessage } from '../../shared/types/websocket';
 
+import { updatePlayerLastSeen } from './playerTracker';
+
 class WorldManager {
   private rooms: Map<string, RoomTemplate> = new Map();
   private roomStates: Map<string, RoomState> = new Map();
@@ -108,6 +110,9 @@ class WorldManager {
 
     // Update player location
     playerQueries.updateRoom(db).run(exit.targetRoom, playerId);
+
+    // Track this movement for "where" command
+    updatePlayerLastSeen(player.name, player.current_room, direction);
 
     // Notify players in old room that player left
     const leaveMessage: ServerMessage = {

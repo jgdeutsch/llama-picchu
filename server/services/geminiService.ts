@@ -772,25 +772,37 @@ Your relationship with ${playerName}: ${relationshipContext}
 
 ${playerName} just said out loud: "${playerSpeech}"
 
-How do you react? Provide your reaction in THREE perspectives:
-- 1ST (what you see): "You nod towards ${playerName}."
-- 2ND (what ${playerName} sees): "${npcName} nods towards you."
-- 3RD (what others see): "${npcName} nods towards ${playerName}."
+How do you react? You can:
+- Just speak (no emote)
+- Just emote (no speech)
+- Both emote and speak
+- Or stay silent (all NONE)
 
-Your response should be IN CHARACTER and reflect your relationship.
-If it's casual chatter, a brief acknowledgment is fine.
+If you emote, provide THREE perspectives. Start each with lowercase (we add the name).
 
 Format your response EXACTLY as:
-EMOTE_1ST: [your perspective, or NONE]
-EMOTE_2ND: [${playerName}'s perspective, or NONE]
-EMOTE_3RD: [others' perspective, or NONE]
+EMOTE_1ST: [your perspective starting lowercase, or NONE]
+EMOTE_2ND: [what ${playerName} sees starting lowercase, or NONE]
+EMOTE_3RD: [what others see starting lowercase, or NONE]
 SPEECH: [words you say out loud, or NONE]
 
-Example response:
-EMOTE_1ST: You glance up from your work and nod.
-EMOTE_2ND: ${npcName} glances up from their work and nods at you.
-EMOTE_3RD: ${npcName} glances up from their work and nods at ${playerName}.
-SPEECH: Evening.`;
+Example 1 - just speech:
+EMOTE_1ST: NONE
+EMOTE_2ND: NONE
+EMOTE_3RD: NONE
+SPEECH: Evening.
+
+Example 2 - just emote:
+EMOTE_1ST: glance up from your work.
+EMOTE_2ND: glances up from their work at you.
+EMOTE_3RD: glances up from their work at ${playerName}.
+SPEECH: NONE
+
+Example 3 - both:
+EMOTE_1ST: pause and look over.
+EMOTE_2ND: pauses and looks over at you.
+EMOTE_3RD: pauses and looks over at ${playerName}.
+SPEECH: What do you want?`;
 
   try {
     const result = await model.generateContent(prompt);
