@@ -69,66 +69,74 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
     npcTemplateId: number;
   }[];
 
-  for (const npc of npcsInRoom) {
+  // Filter to friendly NPCs only
+  const friendlyNpcs = npcsInRoom.filter(npc => {
     const template = npcTemplates.find(t => t.id === npc.npcTemplateId);
-    if (!template || template.type === 'enemy') continue; // Enemies don't chat
+    return template && template.type !== 'enemy';
+  });
 
-    // Get NPC's relationship with player
-    const relationship = db.prepare(`
-      SELECT trust_level FROM social_capital
-      WHERE player_id = ? AND npc_id = ?
-    `).get(ctx.playerId, npc.npcTemplateId) as { trust_level: string } | undefined;
+  if (friendlyNpcs.length === 0) return;
 
-    const trustLevel = relationship?.trust_level || 'stranger';
-    const personality = getNpcPersonalityPrompt(npc.npcTemplateId);
+  // Pick one random NPC to react (avoid spamming with all NPCs responding)
+  const npc = friendlyNpcs[Math.floor(Math.random() * friendlyNpcs.length)];
+  const template = npcTemplates.find(t => t.id === npc.npcTemplateId);
+  if (!template) return;
 
-    // Get NPC's current task
-    const npcState = db.prepare(`
-      SELECT current_task FROM npc_state
-      WHERE npc_template_id = ?
-    `).get(npc.npcTemplateId) as { current_task: string | null } | undefined;
+  // Get NPC's relationship with player
+  const relationship = db.prepare(`
+    SELECT trust_level FROM social_capital
+    WHERE player_id = ? AND npc_id = ?
+  `).get(ctx.playerId, npc.npcTemplateId) as { trust_level: string } | undefined;
 
-    try {
-      const reaction = await generateNpcSpeechReaction(
-        npc.npcTemplateId,
-        template.name,
-        personality,
-        npcState?.current_task || null,
-        ctx.playerId,
-        ctx.playerName,
-        message,
-        trustLevel
-      );
+  const trustLevel = relationship?.trust_level || 'stranger';
+  const personality = getNpcPersonalityPrompt(npc.npcTemplateId);
 
-      if (reaction) {
-        // Send emote if present
-        if (reaction.emote) {
-          sendOutput(ctx.playerId, `\n${template.name} ${reaction.emote}`);
-        }
+  // Get NPC's current task
+  const npcState = db.prepare(`
+    SELECT current_task FROM npc_state
+    WHERE npc_template_id = ?
+  `).get(npc.npcTemplateId) as { current_task: string | null } | undefined;
 
-        // Send response if present
-        if (reaction.response) {
-          // Small delay if there was an emote
-          if (reaction.emote) {
-            await new Promise(resolve => setTimeout(resolve, 300));
-          }
-          sendOutput(ctx.playerId, `${template.name} says, "${reaction.response}"`);
-        }
+  try {
+    const reaction = await generateNpcSpeechReaction(
+      npc.npcTemplateId,
+      template.name,
+      personality,
+      npcState?.current_task || null,
+      ctx.playerId,
+      ctx.playerName,
+      message,
+      trustLevel
+    );
 
-        // Record this interaction in NPC memory
-        addNpcMemory(
-          npc.npcTemplateId,
-          ctx.playerId,
-          'interaction',
-          `${ctx.playerName} said: "${message.substring(0, 80)}"`,
-          3, // Medium importance
-          0  // Neutral valence by default
-        );
+    if (reaction) {
+      // Send emote if present
+      if (reaction.emote) {
+        sendOutput(ctx.playerId, `\n${template.name} ${reaction.emote}`);
       }
-    } catch (error) {
-      // Silently fail - don't disrupt the game if Gemini is down
-      console.error(`[NPC Speech] Error for ${template.name}:`, error);
+
+      // Send response if present
+      if (reaction.response) {
+        // Small delay if there was an emote
+        if (reaction.emote) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+        sendOutput(ctx.playerId, `${template.name} says, "${reaction.response}"`);
+      }
+
+      // Record this interaction in NPC memory
+      addNpcMemory(
+        npc.npcTemplateId,
+        ctx.playerId,
+        'interaction',
+        `${ctx.playerName} said: "${message.substring(0, 80)}"`,
+        3, // Medium importance
+        0  // Neutral valence by default
+      );
     }
+  } catch (error) {
+    // Silently fail - don't disrupt the game if Gemini is down
+    console.error(`[NPC Speech] Error for ${template.name}:`, error);
   }
 }
 

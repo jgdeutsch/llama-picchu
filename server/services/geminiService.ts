@@ -736,9 +736,8 @@ export async function generateNpcSpeechReaction(
   playerSpeech: string,
   trustLevel: string
 ): Promise<{ emote?: string; response?: string } | null> {
-  // Don't react to every little thing - 50% chance to react
-  if (Math.random() > 0.5) return null;
-
+  // Note: Caller can decide whether to call this function based on their own randomness
+  // This function will always try to generate a reaction when called
   const db = getDatabase();
 
   // Get relationship context

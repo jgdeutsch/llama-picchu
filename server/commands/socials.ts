@@ -935,9 +935,71 @@ function processSoloSocial(ctx: CommandContext, social: SocialDefinition): void 
     }
   }
 
-  // NPCs might react to notable socials
-  if (social.sentiment && Math.random() < 0.3) {
-    triggerNpcSocialReaction(ctx, social, null);
+  // NPCs in the room might react to the social
+  triggerNpcSoloSocialReactions(ctx, social);
+}
+
+// Trigger reactions from NPCs in room when player does a solo social (sigh, laugh, etc.)
+async function triggerNpcSoloSocialReactions(ctx: CommandContext, social: SocialDefinition): Promise<void> {
+  const db = getDatabase();
+
+  // Get NPCs in this room
+  const npcsInRoom = roomNpcQueries.getByRoom(db).all(ctx.roomId) as {
+    id: number;
+    npcTemplateId: number;
+  }[];
+
+  // Filter to friendly NPCs
+  const friendlyNpcs = npcsInRoom.filter(npc => {
+    const template = npcTemplates.find(t => t.id === npc.npcTemplateId);
+    return template && template.type !== 'enemy';
+  });
+
+  if (friendlyNpcs.length === 0) return;
+
+  // Pick one random NPC to react (don't spam with all NPCs reacting)
+  const randomNpc = friendlyNpcs[Math.floor(Math.random() * friendlyNpcs.length)];
+  const template = npcTemplates.find(t => t.id === randomNpc.npcTemplateId);
+  if (!template) return;
+
+  const personality = getNpcPersonalityPrompt(randomNpc.npcTemplateId);
+
+  // Get relationship
+  const relationship = db.prepare(`
+    SELECT trust_level FROM social_capital
+    WHERE player_id = ? AND npc_id = ?
+  `).get(ctx.playerId, randomNpc.npcTemplateId) as { trust_level: string } | undefined;
+
+  const trustLevel = relationship?.trust_level || 'stranger';
+
+  // Describe what the player did
+  const actionDesc = social.noTarget.others.replace('{actor}', ctx.playerName);
+
+  try {
+    const reaction = await generateNpcSpeechReaction(
+      randomNpc.npcTemplateId,
+      template.name,
+      personality,
+      null,
+      ctx.playerId,
+      ctx.playerName,
+      actionDesc,
+      trustLevel
+    );
+
+    if (reaction) {
+      if (reaction.emote) {
+        sendOutput(ctx.playerId, `\n${template.name} ${reaction.emote}`);
+      }
+      if (reaction.response) {
+        if (reaction.emote) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+        sendOutput(ctx.playerId, `${template.name} says, "${reaction.response}"`);
+      }
+    }
+  } catch (error) {
+    console.error(`[Solo Social NPC Reaction] Error:`, error);
   }
 }
 
