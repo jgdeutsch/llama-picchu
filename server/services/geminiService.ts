@@ -772,37 +772,44 @@ Your relationship with ${playerName}: ${relationshipContext}
 
 ${playerName} just said out loud: "${playerSpeech}"
 
-How do you react? You can:
-- Just speak (no emote)
-- Just emote (no speech)
-- Both emote and speak
-- Or stay silent (all NONE)
+IMPORTANT: Most of the time, just respond with SPEECH only. Emotes should be RARE - only use them for:
+- Strong emotional reactions (surprise, anger, laughter)
+- When you DON'T have anything to say but want to acknowledge them
+- Dramatic moments
 
-If you emote, provide THREE perspectives. Start each with lowercase (we add the name).
+For normal conversation, JUST SPEAK. No emote needed.
 
 Format your response EXACTLY as:
-EMOTE_1ST: [your perspective starting lowercase, or NONE]
-EMOTE_2ND: [what ${playerName} sees starting lowercase, or NONE]
-EMOTE_3RD: [what others see starting lowercase, or NONE]
-SPEECH: [words you say out loud, or NONE]
-
-Example 1 - just speech:
 EMOTE_1ST: NONE
 EMOTE_2ND: NONE
 EMOTE_3RD: NONE
-SPEECH: Evening.
+SPEECH: [your response]
 
-Example 2 - just emote:
-EMOTE_1ST: glance up from your work.
-EMOTE_2ND: glances up from their work at you.
-EMOTE_3RD: glances up from their work at ${playerName}.
+If you DO need an emote (rare!), provide all three perspectives starting lowercase:
+EMOTE_1ST: [your perspective]
+EMOTE_2ND: [what ${playerName} sees]
+EMOTE_3RD: [what others see]
+SPEECH: [words, or NONE if emote-only]
+
+Examples of GOOD responses:
+
+Just speech (MOST COMMON):
+EMOTE_1ST: NONE
+EMOTE_2ND: NONE
+EMOTE_3RD: NONE
+SPEECH: Good morning to you too.
+
+Emote only (when you have nothing to say):
+EMOTE_1ST: nod in greeting.
+EMOTE_2ND: nods at you in greeting.
+EMOTE_3RD: nods at ${playerName} in greeting.
 SPEECH: NONE
 
-Example 3 - both:
-EMOTE_1ST: pause and look over.
-EMOTE_2ND: pauses and looks over at you.
-EMOTE_3RD: pauses and looks over at ${playerName}.
-SPEECH: What do you want?`;
+Both (RARE - only for strong reactions):
+EMOTE_1ST: burst out laughing.
+EMOTE_2ND: bursts out laughing.
+EMOTE_3RD: bursts out laughing.
+SPEECH: Ha! That's the funniest thing I've heard all day!`;
 
   try {
     const result = await model.generateContent(prompt);
