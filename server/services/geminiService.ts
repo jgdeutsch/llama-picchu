@@ -1111,3 +1111,57 @@ Your reaction (or respond with NONE if you'd ignore them):`;
     return null;
   }
 }
+
+// Generate helpful command guidance for players using the "brain" command
+// This helps players figure out how to do things in the game
+export async function generateBrainHelp(
+  playerQuestion: string,
+  currentRoom: string,
+  npcsInRoom: string[],
+  playerInventory: string[],
+  recentContext?: string
+): Promise<string> {
+  const availableCommands = `
+MOVEMENT: north/n, south/s, east/e, west/w, up/u, down/d, flee
+LOOKING: look/l [target], examine/x [target]
+ITEMS: take/get <item>, drop <item>, inventory/i, equipment/eq, wear/wield <item>, remove <slot>
+CHARACTER: score/sc, vitals, skills, quests
+COMBAT: kill/k <target>, cast <spell> [target], consider/con <target>, flee
+COMMUNICATION: say/' <msg>, tell <name> <msg>, reply/r <msg>, shout <msg>, gossip/. <msg>, who, where <player>
+INTERACTION: talk <npc>, assist [npc], give <item> <npc> or give <amount> <player>
+SURVIVAL: eat <food>, drink <water>, rest/sleep, wake/stand
+ECONOMY: jobs, apply <job#>, work, quit, buy <item>, sell <item>, list
+GATHERING: dig (shovel needed), chop (axe needed), mine (pickaxe needed), fish (line needed)
+BUILDING: plots, survey, build <type> <x> <y>, demolish <x> <y>, materials
+CREATIVE: write <title/text>, paint <title>, draw <x> <y> <char>, compose <title>, play <song>
+OTHER: time, help, save
+`;
+
+  const prompt = `You are the "brain" - an internal voice that helps MUD game players figure out commands.
+
+AVAILABLE COMMANDS:
+${availableCommands}
+
+CURRENT SITUATION:
+- Room: ${currentRoom}
+- NPCs here: ${npcsInRoom.length > 0 ? npcsInRoom.join(', ') : 'none'}
+- Player has: ${playerInventory.length > 0 ? playerInventory.slice(0, 5).join(', ') : 'nothing special'}
+${recentContext ? `- Recent context: ${recentContext}` : ''}
+
+PLAYER'S QUESTION: "${playerQuestion}"
+
+Respond helpfully in 1-3 sentences. Be concise and direct. Include the exact command(s) they need.
+If they want to interact with someone, suggest "talk <name>" or give specific NPC names from the room.
+Don't lecture or over-explain. Just help them do what they want to do.
+Format commands in quotes like "look at sword" or "talk esther".
+
+Your helpful response:`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
+  } catch (error) {
+    console.error('[Brain] Gemini error:', error);
+    return 'Your brain is foggy at the moment. Try "help" for a list of commands.';
+  }
+}

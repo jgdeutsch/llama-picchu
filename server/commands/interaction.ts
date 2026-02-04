@@ -20,6 +20,7 @@ import {
   type NpcMemoryEntry,
 } from '../services/geminiService';
 import type { CommandContext } from './index';
+import { npcWantsManager } from '../managers/npcWantsManager';
 
 export function processInteractionCommand(ctx: CommandContext, action: string): void {
   switch (action) {
@@ -112,7 +113,7 @@ async function processLookAt(ctx: CommandContext): Promise<void> {
     }
   }
 
-  // Check players in room
+  // Check players in room (including self)
   const db = getDatabase();
   const playersInRoom = playerQueries.getPlayersInRoom(db).all(ctx.roomId) as {
     id: number;
@@ -122,9 +123,14 @@ async function processLookAt(ctx: CommandContext): Promise<void> {
   }[];
 
   for (const p of playersInRoom) {
-    if (p.name.toLowerCase().includes(target) && p.id !== ctx.playerId) {
+    if (p.name.toLowerCase().includes(target)) {
       const classDef = playerManager.getClassDefinition(p.class_id);
-      sendOutput(ctx.playerId, `\nYou see ${p.name}, a level ${p.level} ${classDef?.name || 'llama'}.\n`);
+      if (p.id === ctx.playerId) {
+        // Looking at yourself
+        sendOutput(ctx.playerId, `\nYou examine yourself. You are ${p.name}, a level ${p.level} ${classDef?.name || 'llama'}.\n`);
+      } else {
+        sendOutput(ctx.playerId, `\nYou see ${p.name}, a level ${p.level} ${classDef?.name || 'llama'}.\n`);
+      }
       return;
     }
   }
@@ -563,8 +569,8 @@ async function buildConversationContext(
   // Get days since last meeting
   const daysSince = getDaysSinceLastMeeting(npcTemplateId, playerId);
 
-  // Get world context (what's happening nearby)
-  const worldContext = buildWorldContext(roomId, npcTemplateId);
+  // Get world context (what's happening nearby) - include wants for dialogue
+  const worldContext = buildWorldContext(roomId, npcTemplateId, playerId);
 
   // Get game time
   const { hour } = npcLifeManager.getGameTime();
@@ -595,7 +601,7 @@ async function buildConversationContext(
 }
 
 // Build a description of what's happening nearby for context
-function buildWorldContext(roomId: string, excludeNpcId: number): string {
+function buildWorldContext(roomId: string, excludeNpcId: number, playerId?: number): string {
   const parts: string[] = [];
 
   // Get other NPCs in the room
@@ -629,6 +635,14 @@ function buildWorldContext(roomId: string, excludeNpcId: number): string {
     parts.push('Evening has come, the day\'s work is winding down');
   } else if (hour >= 21 || hour < 5) {
     parts.push('It\'s late at night, most folk are asleep');
+  }
+
+  // Add what this NPC wants (if talking to them)
+  if (playerId) {
+    const wantsSummary = npcWantsManager.getWantsSummaryForDialogue(excludeNpcId, playerId);
+    if (wantsSummary) {
+      parts.push(wantsSummary);
+    }
   }
 
   return parts.join('. ') || 'The area is quiet';

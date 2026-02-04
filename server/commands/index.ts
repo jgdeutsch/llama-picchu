@@ -22,6 +22,8 @@ import { processSkillCommand } from './skills';
 import { processShopCommand } from './shop';
 import { getNpcById } from '../data/npcs';
 import { getSocial, processSocialCommand, getAllSocialNames } from './socials';
+import { generateBrainHelp } from '../services/geminiService';
+import { itemTemplates } from '../data/items';
 import type { Direction } from '../../shared/types/room';
 
 // Direction aliases
@@ -384,6 +386,11 @@ export function processCommand(playerId: number, rawInput: string): void {
       processGoto(context);
       break;
 
+    // Brain - Gemini-powered help
+    case 'brain':
+      processBrain(context);
+      break;
+
     default:
       processUnknownCommand(context);
   }
@@ -500,14 +507,20 @@ function processUnknownCommand(ctx: CommandContext): void {
     `  • Type "look" to see where you are`,
     `  • Type n/s/e/w to move around`,
     `  • Type "talk <npc>" to chat with characters`,
-    `  • Type "inventory" to see your items\n`,
+    `  • Type "inventory" to see your items`,
   ];
 
   // Add context-specific suggestions
   if (npcsInRoom.length > 0) {
     const npcName = npcsInRoom[0].name.split(' ')[0].toLowerCase();
-    helpTexts.push(`There's someone here you could talk to: "talk ${npcName}"\n`);
+    helpTexts.push(`  • There's someone here: "talk ${npcName}"`);
   }
+
+  // Add brain reminder
+  helpTexts.push('');
+  helpTexts.push('💭 Tip: Use "brain <question>" to ask how to do something.');
+  helpTexts.push('   Example: brain how do I equip a weapon?');
+  helpTexts.push('');
 
   sendOutput(playerId, helpTexts.join('\n'), 'system');
 }
@@ -953,26 +966,115 @@ function processQuitJob(ctx: CommandContext): void {
 }
 
 function processGive(ctx: CommandContext): void {
-  // Give gold to another player
+  // Give items to NPCs or gold to players
+  // Formats: "give <item> <npc>" or "give <amount> <player>"
   if (ctx.args.length < 2) {
-    sendOutput(ctx.playerId, 'Give what to whom? Use: give <amount> <player>');
+    sendOutput(ctx.playerId, 'Give what to whom? Use: give <item> <npc> or give <amount> <player>');
     return;
   }
 
-  const amount = parseInt(ctx.args[0]);
-  if (isNaN(amount) || amount <= 0) {
-    sendOutput(ctx.playerId, 'Invalid amount.');
-    return;
-  }
-
-  const targetName = ctx.args.slice(1).join(' ');
   const db = getDatabase();
+  const firstArg = ctx.args[0];
+  const targetName = ctx.args.slice(1).join(' ').toLowerCase();
+
+  // First, check if giving to an NPC (item)
+  const npcsInRoom = npcManager.getNpcsInRoom(ctx.roomId);
+  let matchedNpc: { id: number; name: string; npcTemplateId?: number } | null = null;
+
+  for (const npc of npcsInRoom) {
+    const nameParts = npc.name.toLowerCase().split(' ');
+    if (nameParts.some(part => part.length >= 3 && targetName.includes(part)) ||
+        npc.name.toLowerCase().includes(targetName)) {
+      matchedNpc = npc;
+      break;
+    }
+  }
+
+  if (matchedNpc) {
+    // Giving something to an NPC
+    const itemName = firstArg.toLowerCase();
+
+    // Find item in player's inventory
+    const inventory = playerManager.getInventory(ctx.playerId);
+    const item = inventory.find(i => {
+      // Check by name
+      if (i.name.toLowerCase().includes(itemName)) return true;
+      // Check by item template keywords
+      const template = itemTemplates.find(t => t.id === i.templateId);
+      if (template?.keywords?.some(k => k.toLowerCase().includes(itemName))) return true;
+      return false;
+    });
+
+    if (!item) {
+      sendOutput(ctx.playerId, `You don't have "${firstArg}" to give.`);
+      return;
+    }
+
+    // Check if this fulfills an NPC want
+    const npcWantsManager = require('../managers/npcWantsManager').npcWantsManager;
+    const npcTemplateId = matchedNpc.npcTemplateId || (matchedNpc as any).id;
+    const fulfillmentCheck = npcWantsManager.checkFulfillment(
+      npcTemplateId,
+      ctx.playerId,
+      item.templateId,
+      item.quantity
+    );
+
+    if (fulfillmentCheck && fulfillmentCheck.fulfilled) {
+      // Remove items from player inventory
+      const removeQty = fulfillmentCheck.want.quantityNeeded;
+      if (item.quantity > removeQty) {
+        db.prepare(`
+          UPDATE player_inventory SET quantity = quantity - ?
+          WHERE player_id = ? AND item_template_id = ?
+        `).run(removeQty, ctx.playerId, item.templateId);
+      } else {
+        db.prepare(`
+          DELETE FROM player_inventory
+          WHERE player_id = ? AND item_template_id = ?
+        `).run(ctx.playerId, item.templateId);
+      }
+
+      // Fulfill the want and get reward
+      const result = npcWantsManager.fulfillWant(fulfillmentCheck.want.id, ctx.playerId, removeQty);
+
+      sendOutput(ctx.playerId, `\nYou give ${removeQty}x ${item.name} to ${matchedNpc.name}.\n`);
+      sendOutput(ctx.playerId, `${matchedNpc.name}: "${result.message}"\n`);
+
+      if (result.reward) {
+        if (result.reward.type === 'gold') {
+          sendOutput(ctx.playerId, `[+${result.reward.amount} gold]`);
+        } else if (result.reward.type === 'item' && result.reward.itemId) {
+          const rewardItem = require('../data/items').itemTemplates.find((i: any) => i.id === result.reward!.itemId);
+          sendOutput(ctx.playerId, `[Received: ${rewardItem?.name || 'an item'}]`);
+        } else if (result.reward.type === 'reputation') {
+          sendOutput(ctx.playerId, `[+${result.reward.amount} reputation with ${matchedNpc.name}]`);
+        }
+      }
+      sendOutput(ctx.playerId, `[+5 social capital with ${matchedNpc.name}]\n`);
+    } else if (fulfillmentCheck && !fulfillmentCheck.fulfilled) {
+      // They want this item but player doesn't have enough
+      sendOutput(ctx.playerId, `\n${matchedNpc.name} wants ${fulfillmentCheck.want.quantityNeeded}x ${item.name}, but you only have ${item.quantity}.\n`);
+    } else {
+      // NPC doesn't want this item
+      sendOutput(ctx.playerId, `\nYou offer ${item.name} to ${matchedNpc.name}.\n`);
+      sendOutput(ctx.playerId, `${matchedNpc.name} looks at it but doesn't seem interested.\n`);
+    }
+    return;
+  }
+
+  // Not an NPC - check if giving gold to a player
+  const amount = parseInt(firstArg);
+  if (isNaN(amount) || amount <= 0) {
+    sendOutput(ctx.playerId, `You don't see "${targetName}" here.`);
+    return;
+  }
 
   // Find target player
   const target = db.prepare(`SELECT id, name FROM players WHERE name LIKE ?`).get(`%${targetName}%`) as { id: number; name: string } | undefined;
 
   if (!target) {
-    sendOutput(ctx.playerId, `Couldn't find a player named "${targetName}".`);
+    sendOutput(ctx.playerId, `Couldn't find anyone named "${targetName}".`);
     return;
   }
 
@@ -1539,6 +1641,11 @@ function processHelp(ctx: CommandContext): void {
 ║ TRAINING                                               ║
 ║   practice - Train skills at a guild                   ║
 ╠════════════════════════════════════════════════════════╣
+║ GETTING HELP                                           ║
+║   help - Show this command list                        ║
+║   brain <question> - Ask how to do something           ║
+║     Example: brain how do I see my equipment?          ║
+╠════════════════════════════════════════════════════════╣
 ║ SURVIVAL                                               ║
 ║   rest/sleep - Rest to recover faster                  ║
 ║   wake/stand - Stop resting                            ║
@@ -1789,4 +1896,48 @@ function processGoto(ctx: CommandContext): void {
 
   const roomDesc = worldManager.getRoomDescription(roomId, ctx.playerId);
   sendOutput(ctx.playerId, roomDesc);
+}
+
+// === BRAIN COMMAND ===
+// Gemini-powered help that figures out what command the player needs
+
+async function processBrainAsync(ctx: CommandContext): Promise<void> {
+  if (ctx.args.length === 0) {
+    sendOutput(ctx.playerId, '\nYou look inward and ask your brain... nothing.\n\nUsage: brain <your question>\nExample: brain how do I see what I am wearing?\n');
+    return;
+  }
+
+  const question = ctx.args.join(' ');
+
+  // Gather context for the brain
+  const room = worldManager.getRoom(ctx.roomId);
+  const npcsInRoom = npcManager.getNpcsInRoom(ctx.roomId);
+  const npcNames = npcsInRoom.map(n => n.name);
+
+  // Get player inventory (abbreviated)
+  const inventory = playerManager.getInventory(ctx.playerId);
+  const inventoryNames = inventory.slice(0, 5).map(i => i.name);
+
+  sendOutput(ctx.playerId, '\nYou search your brain for the answer...\n');
+
+  try {
+    const response = await generateBrainHelp(
+      question,
+      room?.name || 'unknown area',
+      npcNames,
+      inventoryNames
+    );
+
+    sendOutput(ctx.playerId, `\n💭 ${response}\n`);
+  } catch (error) {
+    console.error('[Brain] Error:', error);
+    sendOutput(ctx.playerId, '\nYour brain is foggy. Try "help" for a list of commands.\n');
+  }
+}
+
+function processBrain(ctx: CommandContext): void {
+  processBrainAsync(ctx).catch(err => {
+    console.error('[Brain] Async error:', err);
+    sendOutput(ctx.playerId, '\nYour thoughts are muddled. Try "help" for basic commands.\n');
+  });
 }

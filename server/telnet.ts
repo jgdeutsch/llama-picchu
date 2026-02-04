@@ -14,6 +14,7 @@ import { gameLoop } from './gameLoop';
 import { processCommand } from './commands';
 import bcrypt from 'bcrypt';
 import { generateTownCrierAnnouncement } from './services/geminiService';
+import { npcWantsManager } from './managers/npcWantsManager';
 
 const TELNET_PORT = parseInt(process.env.TELNET_PORT || '4000', 10);
 
@@ -828,6 +829,9 @@ async function main(): Promise<void> {
 
   // Initialize NPCs
   npcManager.initializeWorldNpcs();
+
+  // Seed NPC wants
+  npcWantsManager.seedWants();
 
   // Set up telnet message handler (must persist for async operations)
   setupTelnetSendToPlayer();

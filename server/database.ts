@@ -600,6 +600,41 @@ export function initializeDatabase(): void {
     )
   `);
 
+  // NPC Wants/Needs - what NPCs desire from players
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS npc_wants (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      npc_template_id INTEGER NOT NULL,
+      want_type TEXT NOT NULL,              -- 'item', 'service', 'information', 'craft'
+      item_id INTEGER,                      -- Item template ID if want_type is 'item'
+      description TEXT NOT NULL,            -- Human-readable description
+      dialogue_hint TEXT,                   -- What NPC says when asked about it
+      quantity_needed INTEGER DEFAULT 1,    -- How many items needed
+      importance INTEGER DEFAULT 5,         -- 1-10, affects NPC enthusiasm
+      reward_type TEXT DEFAULT 'gold',      -- 'gold', 'item', 'service', 'reputation'
+      reward_amount INTEGER DEFAULT 10,     -- Gold amount or reputation boost
+      reward_item_id INTEGER,               -- Item template ID if reward is item
+      reward_description TEXT,              -- "I'll make you a fine shirt"
+      is_repeatable INTEGER DEFAULT 1,      -- Can player fulfill multiple times?
+      cooldown_hours INTEGER DEFAULT 24,    -- Hours before same player can fulfill again
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Track fulfillments of NPC wants
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS npc_want_fulfillments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      want_id INTEGER NOT NULL,
+      player_id INTEGER NOT NULL,
+      fulfilled_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      quantity_given INTEGER DEFAULT 1,
+      FOREIGN KEY (want_id) REFERENCES npc_wants(id),
+      FOREIGN KEY (player_id) REFERENCES players(id)
+    )
+  `);
+
   // Create indexes for performance
   database.exec(`
     CREATE INDEX IF NOT EXISTS idx_players_account ON players(account_id);
@@ -630,6 +665,12 @@ export function initializeDatabase(): void {
     CREATE INDEX IF NOT EXISTS idx_npc_journals_date ON npc_journals(entry_date);
     CREATE INDEX IF NOT EXISTS idx_npc_npc_gossip_speaker ON npc_npc_gossip(speaker_npc_id);
     CREATE INDEX IF NOT EXISTS idx_npc_npc_gossip_listener ON npc_npc_gossip(listener_npc_id);
+
+    -- NPC wants system indexes
+    CREATE INDEX IF NOT EXISTS idx_npc_wants_npc ON npc_wants(npc_template_id);
+    CREATE INDEX IF NOT EXISTS idx_npc_wants_active ON npc_wants(is_active);
+    CREATE INDEX IF NOT EXISTS idx_npc_want_fulfillments_want ON npc_want_fulfillments(want_id);
+    CREATE INDEX IF NOT EXISTS idx_npc_want_fulfillments_player ON npc_want_fulfillments(player_id);
   `);
 
   // Seed protected names
