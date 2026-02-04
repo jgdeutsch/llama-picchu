@@ -636,6 +636,10 @@ async function buildConversationContext(
   // Get room physical context - what actually exists
   const roomData = buildRoomPhysicalContext(roomId, npcTemplateId);
 
+  // Get room name for location context
+  const currentRoom = worldManager.getRoom(roomId);
+  const roomName = currentRoom?.name || roomId;
+
   // Build the context object
   const context: ConversationContext = {
     npcId: npcTemplateId,
@@ -645,7 +649,7 @@ async function buildConversationContext(
     npcCurrentTask: npcState?.current_task || null,
     npcTaskProgress: npcState?.task_progress || 0,
     npcMood: npcState?.mood || 'neutral',
-    npcLocation: roomId,
+    npcLocation: roomName,
     playerName: playerName,
     playerLevel: playerInfo?.level || 1,
     playerClass: playerClass,

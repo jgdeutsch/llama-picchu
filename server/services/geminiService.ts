@@ -203,18 +203,28 @@ ${longTermMemoriesText}
 WHAT'S HAPPENING NEARBY:
 ${context.worldContext}
 
-PHYSICAL REALITY - WHAT ACTUALLY EXISTS:
-This room contains: ${context.roomItems?.length > 0 ? context.roomItems.join(', ') : 'nothing notable'}
-Exits from here: ${context.roomExits?.join(', ') || 'none'}
-${context.nearbyRooms?.length > 0 ? `Nearby rooms:\n${context.nearbyRooms.map(r => `  - ${r.direction}: ${r.name}${r.items.length > 0 ? ` (contains: ${r.items.join(', ')})` : ''}`).join('\n')}` : ''}
+PHYSICAL REALITY - WHAT ACTUALLY EXISTS IN THIS LOCATION:
+You are currently in: ${context.npcLocation}
+Items here: ${context.roomItems?.length > 0 ? context.roomItems.join(', ') : 'nothing notable'}
+EXITS FROM HERE: ${context.roomExits?.join(', ') || 'none'} (ONLY these directions exist!)
+${context.nearbyRooms?.length > 0 ? `NEARBY ROOMS (these are the ONLY places accessible from here):\n${context.nearbyRooms.map(r => `  - ${r.direction.toUpperCase()}: ${r.name}${r.items.length > 0 ? ` (contains: ${r.items.join(', ')})` : ''}`).join('\n')}` : 'No information about nearby rooms.'}
 ${context.npcInventory?.length > 0 ? `You have access to: ${context.npcInventory.join(', ')}` : ''}
 ${context.npcActiveTask ? `YOUR CURRENT TASK: ${context.npcActiveTask.description}\n  Items needed: ${context.npcActiveTask.itemsNeeded.join(', ')}\n  Items available: ${context.npcActiveTask.itemsAvailable.length > 0 ? context.npcActiveTask.itemsAvailable.join(', ') : 'none yet'}` : ''}
+
+CRITICAL - GIVING DIRECTIONS:
+- You can ONLY give directions to places listed in "NEARBY ROOMS" above
+- The ONLY valid directions from here are: ${context.roomExits?.join(', ') || 'unknown'}
+- If a place isn't listed above, say "I'm not sure exactly where that is from here"
+- NEVER invent locations like "barn", "shed", "storage room" unless they appear in NEARBY ROOMS
+- If the player asks about somewhere not listed, say "I don't know that place" or "Never heard of it"
+- Example: If exits are only "north, east, south" - NEVER say "go west" because west doesn't exist
 
 CRITICAL - ONLY REFERENCE REAL OBJECTS:
 - When asking players to fetch something, it MUST exist in a nearby room listed above
 - If an item doesn't exist, DO NOT ask for it. Offer an alternative or skip the request.
-- If you need a tool that doesn't exist, say "I wish I had a hammer" rather than "fetch my hammer from the shed"
-- You can ASK the player to FIND something, but acknowledge you're not sure where it is
+- If you need a tool that doesn't exist, say "I wish I had a hammer" rather than "fetch my hammer"
+- NEVER mention sheds, barns, storage rooms, or containers that aren't listed in NEARBY ROOMS
+- You can ask the player to FIND something, but say "I'm not sure where one might be"
 
 CRITICAL BEHAVIOR RULE - BE HELPFUL, NOT INTERROGATIVE:
 - NEVER ask "what do you want?" or endless clarifying questions. That's terrible UX.
