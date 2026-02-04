@@ -56,6 +56,9 @@ export function processInteractionCommand(ctx: CommandContext, action: string): 
     case 'status':
       processStatus(ctx);
       break;
+    case 'context':
+      processContext(ctx);
+      break;
   }
 }
 
@@ -625,6 +628,9 @@ async function buildConversationContext(
   // Build player appearance description from equipment
   const playerAppearance = buildPlayerAppearanceDescription(playerId);
 
+  // Get room physical context - what actually exists
+  const roomData = buildRoomPhysicalContext(roomId, npcTemplateId);
+
   // Build the context object
   const context: ConversationContext = {
     npcId: npcTemplateId,
@@ -648,6 +654,12 @@ async function buildConversationContext(
     conversationHistory: conversationHistory,
     timeOfDay: timeOfDay,
     daysSinceLastMeeting: daysSince,
+    // Room physical context
+    roomItems: roomData.roomItems,
+    roomExits: roomData.roomExits,
+    nearbyRooms: roomData.nearbyRooms,
+    npcInventory: roomData.npcInventory,
+    npcActiveTask: roomData.npcActiveTask,
   };
 
   return context;
@@ -930,6 +942,93 @@ function buildShopInventoryContext(npcTemplateId: number): string {
   if (items.length === 0) return '';
 
   return `\nYOUR SHOP INVENTORY (offer these to customers!):\n${items.join('\n')}`;
+}
+
+// Build physical room context - what actually exists in the world
+function buildRoomPhysicalContext(roomId: string, npcTemplateId: number): {
+  roomItems: string[];
+  roomExits: string[];
+  nearbyRooms: { direction: string; name: string; items: string[] }[];
+  npcInventory: string[];
+  npcActiveTask: { description: string; itemsNeeded: string[]; itemsAvailable: string[] } | null;
+} {
+  const db = getDatabase();
+
+  // Get items in current room
+  const roomItemsData = worldManager.getItemsInRoom(roomId);
+  const roomItems = roomItemsData.map(item => {
+    const template = itemTemplates.find(t => t.id === item.itemTemplateId);
+    return template?.name || 'unknown item';
+  });
+
+  // Get room exits
+  const room = worldManager.getRoom(roomId);
+  const roomExits = room?.exits ? Object.keys(room.exits) : [];
+
+  // Get nearby rooms and their contents (one level deep)
+  const nearbyRooms: { direction: string; name: string; items: string[] }[] = [];
+  if (room?.exits) {
+    for (const [direction, targetRoomId] of Object.entries(room.exits)) {
+      const targetRoom = worldManager.getRoom(targetRoomId);
+      if (targetRoom) {
+        const targetItems = worldManager.getItemsInRoom(targetRoomId);
+        const itemNames = targetItems.map(item => {
+          const template = itemTemplates.find(t => t.id === item.itemTemplateId);
+          return template?.name || 'unknown item';
+        });
+        nearbyRooms.push({
+          direction,
+          name: targetRoom.name,
+          items: itemNames
+        });
+      }
+    }
+  }
+
+  // Get NPC's shop inventory as items they have access to
+  const npcTemplate = npcTemplates.find(t => t.id === npcTemplateId);
+  const npcInventory: string[] = [];
+  if (npcTemplate?.shopInventory) {
+    for (const shopItem of npcTemplate.shopInventory) {
+      const itemTemplate = itemTemplates.find(i => i.id === shopItem.itemTemplateId);
+      if (itemTemplate) {
+        npcInventory.push(itemTemplate.name);
+      }
+    }
+  }
+
+  // Get NPC's active task and what items it needs
+  let npcActiveTask: { description: string; itemsNeeded: string[]; itemsAvailable: string[] } | null = null;
+  const taskData = db.prepare(`
+    SELECT description, resources_needed, resources_gathered
+    FROM npc_tasks
+    WHERE npc_instance_id IN (SELECT id FROM room_npcs WHERE npc_template_id = ?)
+      AND status IN ('active', 'pending')
+    ORDER BY status DESC
+    LIMIT 1
+  `).get(npcTemplateId) as {
+    description: string;
+    resources_needed: string;
+    resources_gathered: string;
+  } | undefined;
+
+  if (taskData) {
+    const needed = JSON.parse(taskData.resources_needed || '[]') as string[];
+    const gathered = JSON.parse(taskData.resources_gathered || '[]') as string[];
+    npcActiveTask = {
+      description: taskData.description,
+      itemsNeeded: needed,
+      itemsAvailable: gathered
+    };
+  }
+
+  return {
+    roomItems,
+    roomExits,
+    nearbyRooms,
+    npcInventory,
+    npcActiveTask
+  };
 }
 
 // Build a description of what's happening nearby for context
@@ -1242,4 +1341,230 @@ function getTrustLevelEffects(trustLevel: string): string {
 // Helper to capitalize first letter
 function capitalizeFirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// Process CONTEXT command - show full NPC context (debug/admin command)
+function processContext(ctx: CommandContext): void {
+  const targetName = ctx.args.join(' ').toLowerCase().trim();
+
+  if (!targetName) {
+    sendOutput(ctx.playerId, 'Context for whom? Usage: context <npc name>');
+    return;
+  }
+
+  const db = getDatabase();
+
+  // Find NPC in current room
+  const npcsInRoom = npcManager.getNpcsInRoom(ctx.roomId);
+  const matchingNpc = npcsInRoom.find(npc => {
+    const template = npcTemplates.find(t => t.id === npc.templateId);
+    return template?.name.toLowerCase().includes(targetName) ||
+           template?.keywords?.some(k => k.toLowerCase().includes(targetName));
+  });
+
+  if (!matchingNpc) {
+    sendOutput(ctx.playerId, `You don't see ${targetName} here.`);
+    return;
+  }
+
+  const template = npcTemplates.find(t => t.id === matchingNpc.templateId);
+  if (!template) {
+    sendOutput(ctx.playerId, "Can't get context for this NPC.");
+    return;
+  }
+
+  const lines: string[] = [];
+  lines.push(`\n${'='.repeat(50)}`);
+  lines.push(`FULL CONTEXT: ${template.name}`);
+  lines.push(`${'='.repeat(50)}\n`);
+
+  // Basic info
+  lines.push(`--- IDENTITY ---`);
+  lines.push(`Name: ${template.name}`);
+  lines.push(`Role: ${template.role || template.type}`);
+  lines.push(`Keywords: ${template.keywords?.join(', ') || 'none'}`);
+  lines.push('');
+
+  // Current state
+  const npcState = db.prepare(`
+    SELECT current_task, task_progress, energy, mood, current_room, current_purpose
+    FROM npc_state ns
+    JOIN room_npcs rn ON ns.npc_instance_id = rn.id
+    WHERE rn.npc_template_id = ?
+    LIMIT 1
+  `).get(matchingNpc.templateId) as {
+    current_task: string | null;
+    task_progress: number;
+    energy: number;
+    mood: string;
+    current_room: string;
+    current_purpose: string | null;
+  } | undefined;
+
+  lines.push(`--- CURRENT STATE ---`);
+  lines.push(`Mood: ${npcState?.mood || 'neutral'}`);
+  lines.push(`Energy: ${npcState?.energy || 100}/100`);
+  lines.push(`Current Task: ${npcState?.current_task || 'idle'}`);
+  lines.push(`Task Progress: ${npcState?.task_progress || 0}%`);
+  lines.push(`Purpose: ${npcState?.current_purpose || 'none specified'}`);
+  lines.push('');
+
+  // Active tasks
+  const tasks = db.prepare(`
+    SELECT task_type, description, status, progress, resources_needed, resources_gathered
+    FROM npc_tasks
+    WHERE npc_instance_id IN (SELECT id FROM room_npcs WHERE npc_template_id = ?)
+    ORDER BY status DESC, created_at DESC
+    LIMIT 5
+  `).all(matchingNpc.templateId) as Array<{
+    task_type: string;
+    description: string;
+    status: string;
+    progress: number;
+    resources_needed: string;
+    resources_gathered: string;
+  }>;
+
+  lines.push(`--- TASKS ---`);
+  if (tasks.length === 0) {
+    lines.push('No active tasks.');
+  } else {
+    for (const task of tasks) {
+      const needed = JSON.parse(task.resources_needed || '[]');
+      const gathered = JSON.parse(task.resources_gathered || '[]');
+      lines.push(`• [${task.status.toUpperCase()}] ${task.description}`);
+      lines.push(`  Type: ${task.task_type}, Progress: ${task.progress}%`);
+      if (needed.length > 0) {
+        lines.push(`  Needs: ${needed.join(', ')}`);
+        lines.push(`  Has: ${gathered.length > 0 ? gathered.join(', ') : 'nothing yet'}`);
+      }
+    }
+  }
+  lines.push('');
+
+  // Wants (what they're looking for)
+  const wants = db.prepare(`
+    SELECT want_type, target, priority, reason, status
+    FROM npc_wants
+    WHERE npc_template_id = ? AND status != 'fulfilled'
+    ORDER BY priority DESC
+    LIMIT 5
+  `).all(matchingNpc.templateId) as Array<{
+    want_type: string;
+    target: string;
+    priority: number;
+    reason: string;
+    status: string;
+  }>;
+
+  lines.push(`--- WANTS ---`);
+  if (wants.length === 0) {
+    lines.push('No active wants.');
+  } else {
+    for (const want of wants) {
+      lines.push(`• [${want.status}] ${want.want_type}: ${want.target}`);
+      lines.push(`  Priority: ${want.priority}/10 - ${want.reason}`);
+    }
+  }
+  lines.push('');
+
+  // Opinion of player
+  const memory = npcManager.getNpcMemory(matchingNpc.templateId, ctx.playerId);
+  const disposition = memory?.disposition ?? 50;
+  const trustLevel = getDispositionTrustLevel(disposition);
+
+  lines.push(`--- OPINION OF YOU ---`);
+  lines.push(`Disposition: ${disposition}/100 (${trustLevel})`);
+  lines.push(`Interactions: ${memory?.interaction_count || 0} total`);
+  lines.push(`  Positive: ${memory?.positive_interactions || 0}`);
+  lines.push(`  Negative: ${memory?.negative_interactions || 0}`);
+
+  const memories = memory?.memories ? JSON.parse(memory.memories as string) : [];
+  if (memories.length > 0) {
+    lines.push(`Memories of you:`);
+    for (const m of memories.slice(-5)) {
+      lines.push(`  • ${m}`);
+    }
+  }
+  lines.push('');
+
+  // Relationships with other NPCs
+  const relationships = db.prepare(`
+    SELECT target_npc_id, relationship_type, affinity, trust, notes
+    FROM npc_relationships
+    WHERE npc_id = ?
+    ORDER BY affinity DESC
+    LIMIT 10
+  `).all(matchingNpc.templateId) as Array<{
+    target_npc_id: number;
+    relationship_type: string;
+    affinity: number;
+    trust: number;
+    notes: string | null;
+  }>;
+
+  lines.push(`--- RELATIONSHIPS WITH OTHER NPCS ---`);
+  if (relationships.length === 0) {
+    lines.push('No recorded relationships.');
+  } else {
+    for (const rel of relationships) {
+      const targetTemplate = npcTemplates.find(t => t.id === rel.target_npc_id);
+      const targetName = targetTemplate?.name || `NPC #${rel.target_npc_id}`;
+      lines.push(`• ${targetName}: ${rel.relationship_type} (affinity: ${rel.affinity}, trust: ${rel.trust})`);
+      if (rel.notes) {
+        lines.push(`  "${rel.notes}"`);
+      }
+    }
+  }
+  lines.push('');
+
+  // NPC-to-NPC memories
+  const npcMemories = db.prepare(`
+    SELECT about_npc_id, content, importance, emotional_valence
+    FROM npc_npc_memories
+    WHERE npc_id = ?
+    ORDER BY created_at DESC
+    LIMIT 5
+  `).all(matchingNpc.templateId) as Array<{
+    about_npc_id: number;
+    content: string;
+    importance: number;
+    emotional_valence: number;
+  }>;
+
+  if (npcMemories.length > 0) {
+    lines.push(`--- MEMORIES OF OTHER NPCS ---`);
+    for (const mem of npcMemories) {
+      const aboutTemplate = npcTemplates.find(t => t.id === mem.about_npc_id);
+      const aboutName = aboutTemplate?.name || `NPC #${mem.about_npc_id}`;
+      const valence = mem.emotional_valence > 0 ? '+' : mem.emotional_valence < 0 ? '-' : '~';
+      lines.push(`• About ${aboutName}: ${mem.content} [${valence}${Math.abs(mem.emotional_valence)}]`);
+    }
+    lines.push('');
+  }
+
+  // Room context
+  const roomData = buildRoomPhysicalContext(ctx.roomId, matchingNpc.templateId);
+  lines.push(`--- PHYSICAL CONTEXT ---`);
+  lines.push(`Room items: ${roomData.roomItems.length > 0 ? roomData.roomItems.join(', ') : 'none'}`);
+  lines.push(`Exits: ${roomData.roomExits.join(', ')}`);
+  if (roomData.nearbyRooms.length > 0) {
+    lines.push(`Nearby:`);
+    for (const nearby of roomData.nearbyRooms) {
+      lines.push(`  ${nearby.direction}: ${nearby.name}${nearby.items.length > 0 ? ` [${nearby.items.join(', ')}]` : ''}`);
+    }
+  }
+  if (roomData.npcInventory.length > 0) {
+    lines.push(`Shop inventory: ${roomData.npcInventory.join(', ')}`);
+  }
+  lines.push('');
+
+  // Personality
+  const personality = getNpcPersonalityPrompt(matchingNpc.templateId);
+  lines.push(`--- PERSONALITY ---`);
+  lines.push(personality.substring(0, 500) + (personality.length > 500 ? '...' : ''));
+
+  lines.push(`\n${'='.repeat(50)}`);
+
+  sendOutput(ctx.playerId, lines.join('\n'));
 }

@@ -35,6 +35,12 @@ export interface ConversationContext {
   conversationHistory: ConversationMessage[];
   timeOfDay: string;
   daysSinceLastMeeting: number | null;
+  // Room context - what actually exists
+  roomItems: string[];           // Items in the current room
+  roomExits: string[];           // Available exits
+  nearbyRooms: { direction: string; name: string; items: string[] }[];  // Adjacent rooms and their contents
+  npcInventory: string[];        // Items the NPC is carrying or has access to
+  npcActiveTask: { description: string; itemsNeeded: string[]; itemsAvailable: string[] } | null;
 }
 
 export interface ConversationMessage {
@@ -196,6 +202,19 @@ ${longTermMemoriesText}
 
 WHAT'S HAPPENING NEARBY:
 ${context.worldContext}
+
+PHYSICAL REALITY - WHAT ACTUALLY EXISTS:
+This room contains: ${context.roomItems?.length > 0 ? context.roomItems.join(', ') : 'nothing notable'}
+Exits from here: ${context.roomExits?.join(', ') || 'none'}
+${context.nearbyRooms?.length > 0 ? `Nearby rooms:\n${context.nearbyRooms.map(r => `  - ${r.direction}: ${r.name}${r.items.length > 0 ? ` (contains: ${r.items.join(', ')})` : ''}`).join('\n')}` : ''}
+${context.npcInventory?.length > 0 ? `You have access to: ${context.npcInventory.join(', ')}` : ''}
+${context.npcActiveTask ? `YOUR CURRENT TASK: ${context.npcActiveTask.description}\n  Items needed: ${context.npcActiveTask.itemsNeeded.join(', ')}\n  Items available: ${context.npcActiveTask.itemsAvailable.length > 0 ? context.npcActiveTask.itemsAvailable.join(', ') : 'none yet'}` : ''}
+
+CRITICAL - ONLY REFERENCE REAL OBJECTS:
+- When asking players to fetch something, it MUST exist in a nearby room listed above
+- If an item doesn't exist, DO NOT ask for it. Offer an alternative or skip the request.
+- If you need a tool that doesn't exist, say "I wish I had a hammer" rather than "fetch my hammer from the shed"
+- You can ASK the player to FIND something, but acknowledge you're not sure where it is
 
 CRITICAL BEHAVIOR RULE - BE HELPFUL, NOT INTERROGATIVE:
 - NEVER ask "what do you want?" or endless clarifying questions. That's terrible UX.

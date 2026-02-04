@@ -380,6 +380,9 @@ export function processCommand(playerId: number, rawInput: string): void {
     case 'status':
       processStatus(context);
       break;
+    case 'context':
+      processContext(context);
+      break;
 
     // NPC Assistance (Living World)
     case 'assist':
@@ -1513,6 +1516,14 @@ function processStatus(ctx: CommandContext): void {
     return;
   }
   processInteractionCommand(ctx, 'status');
+}
+
+function processContext(ctx: CommandContext): void {
+  if (ctx.args.length === 0) {
+    sendOutput(ctx.playerId, 'View context for whom? Usage: context <npc name>');
+    return;
+  }
+  processInteractionCommand(ctx, 'context');
 }
 
 function processSave(ctx: CommandContext): void {
