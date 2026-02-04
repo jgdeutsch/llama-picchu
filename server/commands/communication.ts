@@ -99,16 +99,33 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
     const template = npcTemplates.find(t => t.id === npc.npcTemplateId);
     if (!template) continue;
 
-    // Check if NPC's first name or full name is mentioned
-    const firstName = template.name.split(' ')[0].toLowerCase();
+    // Check if NPC's name is mentioned - check all parts of their name
+    // For "Vegetable Vendor Marge", check: "vegetable", "vendor", "marge"
+    const nameParts = template.name.toLowerCase().split(' ');
     const fullName = template.name.toLowerCase();
 
-    if (messageLower.includes(firstName) || messageLower.includes(fullName)) {
+    // Check full name first
+    if (messageLower.includes(fullName)) {
       mentionedNpc = npc;
       mentionedTemplate = template;
-      console.log(`[NPC Speech] "${template.name}" was mentioned by name in the message`);
+      console.log(`[NPC Speech] "${template.name}" was mentioned by full name in the message`);
       break;
     }
+
+    // Check each part of the name (prioritize last name / personal name)
+    // Common patterns: "Farmer Rutherford", "Vegetable Vendor Marge", "Old Gossip Gertrude"
+    for (const part of nameParts) {
+      // Skip very short words and common titles
+      if (part.length < 3 || ['the', 'old', 'young', 'sir', 'lady'].includes(part)) continue;
+
+      if (messageLower.includes(part)) {
+        mentionedNpc = npc;
+        mentionedTemplate = template;
+        console.log(`[NPC Speech] "${template.name}" was mentioned (matched "${part}") in the message`);
+        break;
+      }
+    }
+    if (mentionedNpc) break;
   }
 
   // If an NPC was mentioned, they ALWAYS respond first
