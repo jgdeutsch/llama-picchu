@@ -942,9 +942,11 @@ export async function generateNpcEmote(
   npcName: string,
   npcPersonality: string,
   npcCurrentTask: string | null,
-  roomName: string
+  roomName: string,
+  roomFeatures?: Array<{ keywords: string[]; description: string }>
 ): Promise<string | null> {
   // Quick emotes for common situations - don't always need Gemini
+  // These reference things we KNOW exist in the game
   const quickEmotes: Record<string, string[]> = {
     farming: [
       `${npcName} wipes sweat from their brow and continues working.`,
@@ -981,20 +983,41 @@ export async function generateNpcEmote(
       `${npcName} watches the water, perfectly still.`,
       `${npcName} rebaits their hook patiently.`,
     ],
+    tailoring: [
+      `${npcName} measures a bolt of fabric with practiced eyes.`,
+      `${npcName} threads a needle with steady hands.`,
+      `${npcName} adjusts a garment on the mannequin.`,
+      `${npcName} examines the stitching on a cloak.`,
+      `${npcName} sorts through spools of thread.`,
+    ],
+    baking: [
+      `${npcName} pulls a tray from the oven.`,
+      `${npcName} kneads dough with practiced motions.`,
+      `${npcName} dusts flour from their hands.`,
+    ],
   };
 
-  // 60% chance to use a quick emote if available
-  if (npcCurrentTask && quickEmotes[npcCurrentTask] && Math.random() < 0.6) {
+  // 70% chance to use a quick emote if available (safer - no hallucinations)
+  if (npcCurrentTask && quickEmotes[npcCurrentTask] && Math.random() < 0.7) {
     const emotes = quickEmotes[npcCurrentTask];
     return emotes[Math.floor(Math.random() * emotes.length)];
   }
 
+  // Build room context from features so AI only references real things
+  let roomContext = '';
+  if (roomFeatures && roomFeatures.length > 0) {
+    const featureNames = roomFeatures.flatMap(f => f.keywords.slice(0, 2)).join(', ');
+    roomContext = `\nThings in this room: ${featureNames}. ONLY reference these objects, nothing else.`;
+  }
+
   // Otherwise, generate with Gemini for more variety
   const prompt = `You are ${npcName} in ${roomName}. Personality: ${npcPersonality}
-${npcCurrentTask ? `Currently doing: ${npcCurrentTask}` : 'Currently idle'}
+${npcCurrentTask ? `Currently doing: ${npcCurrentTask}` : 'Currently idle'}${roomContext}
 
 Generate ONE short emote (action description) for this NPC. NOT dialogue - just an action.
 Format: "${npcName} [action]." - keep under 15 words.
+
+IMPORTANT: Only reference objects that actually exist in this room. Do NOT invent objects.
 
 Examples:
 - ${npcName} stretches and yawns, looking around lazily.

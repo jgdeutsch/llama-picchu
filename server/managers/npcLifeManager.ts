@@ -88,6 +88,23 @@ const DEFAULT_SCHEDULES: Record<string, ScheduleEntry[]> = {
     { hour: 22, task: 'work', location: 'the_inn', duration: 1, interruptible: true, taskType: 'cleaning' },
     { hour: 23, task: 'sleep', location: 'the_inn', duration: 7, interruptible: false },
   ],
+  tailor: [
+    { hour: 7, task: 'wake', location: 'home', duration: 1, interruptible: false },
+    { hour: 8, task: 'work', location: 'work', duration: 4, interruptible: true, taskType: 'tailoring' },
+    { hour: 12, task: 'eat', location: 'the_inn', duration: 1, interruptible: true },
+    { hour: 13, task: 'work', location: 'work', duration: 5, interruptible: true, taskType: 'tailoring' },
+    { hour: 18, task: 'rest', location: 'home', duration: 3, interruptible: true },
+    { hour: 21, task: 'sleep', location: 'home', duration: 10, interruptible: false },
+  ],
+  baker: [
+    { hour: 4, task: 'wake', location: 'home', duration: 1, interruptible: false },
+    { hour: 5, task: 'work', location: 'work', duration: 3, interruptible: true, taskType: 'baking', taskTarget: 'bread' },
+    { hour: 8, task: 'work', location: 'work', duration: 4, interruptible: true, taskType: 'selling' },
+    { hour: 12, task: 'eat', location: 'work', duration: 1, interruptible: true },
+    { hour: 13, task: 'work', location: 'work', duration: 5, interruptible: true, taskType: 'selling' },
+    { hour: 18, task: 'rest', location: 'home', duration: 4, interruptible: true },
+    { hour: 22, task: 'sleep', location: 'home', duration: 6, interruptible: false },
+  ],
   wanderer: [
     { hour: 0, task: 'wander', location: 'random', duration: 24, interruptible: true },
   ],
@@ -109,12 +126,14 @@ const NPC_SCHEDULE_TYPES: Record<number, string> = {
 
   // Village/Farm folk
   10: 'farmer',      // Farmer Rutherford
-  113: 'shopkeeper', // Baker Possum
+  113: 'baker',      // Baker Possum
   114: 'innkeeper',  // Innkeeper Antelope
   115: 'shopkeeper', // Blacksmith Gordo
   116: 'shopkeeper', // Elena
   120: 'stationary', // Fisherman Harpua - always fishing
   121: 'shopkeeper', // Healer Esther
+  125: 'baker',      // Apprentice Baker Pip
+  126: 'tailor',     // Tailor Lydia
 
   // Guards
   106: 'guard',      // Gate Guard Viktor
@@ -126,13 +145,16 @@ const NPC_SCHEDULE_TYPES: Record<number, string> = {
 // Home and work rooms for NPCs
 const NPC_LOCATIONS: Record<number, { home: string; work: string }> = {
   10: { home: 'lizard_homes_west', work: 'farmlands' },           // Rutherford
-  113: { home: 'market_district', work: 'market_district' },      // Baker Possum
+  113: { home: 'bakery', work: 'bakery' },                        // Baker Possum
   114: { home: 'the_inn', work: 'the_inn' },                      // Innkeeper Antelope
   115: { home: 'blacksmith_forge', work: 'blacksmith_forge' },    // Gordo
   116: { home: 'blacksmith_forge', work: 'blacksmith_forge' },    // Elena
   118: { home: 'lizard_homes_west', work: 'lizard_homes_west' },  // Martha Rutherford
   119: { home: 'lizard_homes_west', work: 'lizard_homes_west' },  // Jimmy
   120: { home: 'river_crossing', work: 'river_crossing' },        // Harpua
+  121: { home: 'village_square', work: 'village_square' },        // Healer Esther
+  125: { home: 'bakery', work: 'bakery' },                        // Apprentice Baker Pip
+  126: { home: 'tailor_shop', work: 'tailor_shop' },              // Tailor Lydia
   106: { home: 'guard_barracks', work: 'prussia_gate' },          // Viktor
   108: { home: 'guard_barracks', work: 'guard_barracks' },        // Sloth
   109: { home: 'guard_barracks', work: 'guard_barracks' },        // Hendricks
@@ -300,6 +322,10 @@ class NPCLifeManager {
     roomName: string
   ): Promise<void> {
     try {
+      // Get room features so NPCs only reference things that actually exist
+      const room = worldManager.getRoom(npcState.current_room);
+      const roomFeatures = room?.features || [];
+
       // Decide what kind of reaction (or combination)
       const roll = Math.random();
 
@@ -309,7 +335,8 @@ class NPCLifeManager {
           npcTemplate.name,
           personality,
           npcState.current_task,
-          roomName
+          roomName,
+          roomFeatures
         );
         if (emote) {
           connectionManager.sendToPlayer(playerId, {
@@ -341,7 +368,8 @@ class NPCLifeManager {
           npcTemplate.name,
           personality,
           npcState.current_task,
-          roomName
+          roomName,
+          roomFeatures
         );
         const comment = await generateNpcRoomEntryComment(
           npcState.npc_template_id,
@@ -591,6 +619,8 @@ class NPCLifeManager {
       smithing: `${npcName} hammers at the forge, ${progressDesc} the current piece.`,
       fishing: `${npcName} sits with a fishing line in the water, patient as always.`,
       serving: `${npcName} moves between tables, serving food and drink.`,
+      tailoring: `${npcName} works at the sewing table, ${progressDesc} a garment.`,
+      baking: `${npcName} works at the oven, ${progressDesc} the day's bread.`,
     };
 
     const desc = taskDescs[task];

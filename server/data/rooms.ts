@@ -272,7 +272,7 @@ export const roomTemplates: RoomTemplate[] = [
   {
     id: 'tailor_shop',
     name: 'Needle & Thread',
-    description: 'Bolts of fabric lean against the walls. Lydia the tailor works at a sewing table, her needle flashing in and out of cloth. Finished garments hang from hooks - sturdy linen shirts, wool pants, leather boots, and grey traveling cloaks. Type "look lydia" to see prices.',
+    description: 'Bolts of fabric lean against the walls. A worn mannequin stands in the corner, draped with samples. Lydia the tailor works at a sewing table, her needle flashing in and out of cloth. Finished garments hang from hooks - sturdy linen shirts, wool pants, leather boots, and grey traveling cloaks. Type "look lydia" to see prices.',
     area: 'village',
     exits: [
       { direction: 'east', targetRoom: 'market_district' },
@@ -290,6 +290,14 @@ export const roomTemplates: RoomTemplate[] = [
       {
         keywords: ['garments', 'clothes', 'clothing', 'hooks', 'shirts', 'pants', 'boots', 'cloaks'],
         description: 'Finished garments hang ready: Sturdy Linen Shirts (25g), Wool Travel Pants (30g), Leather Work Boots (35g), and Grey Traveler\'s Cloaks (40g). Use "buy <item>" to purchase.',
+      },
+      {
+        keywords: ['mannequin', 'dummy', 'form', 'samples'],
+        description: 'A worn wooden mannequin stands in the corner, its joints smoothed by years of use. Fabric samples drape across its shoulders - a way for Lydia to show off her latest work to customers.',
+      },
+      {
+        keywords: ['table', 'sewing table', 'needle', 'needles', 'thread', 'threads'],
+        description: 'Lydia\'s sewing table is organized chaos - needles stuck in a pincushion, spools of thread in every color, scissors, measuring tape, and half-finished projects. This is where the magic happens.',
       },
     ],
   },
