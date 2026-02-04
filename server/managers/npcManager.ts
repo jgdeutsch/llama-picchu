@@ -69,7 +69,9 @@ class NpcManager {
   initializeWorldNpcs(): void {
     const db = getDatabase();
 
-    // Clear existing NPCs
+    // Clear existing NPCs and related tables (must delete children first due to foreign keys)
+    db.exec('DELETE FROM npc_tasks');
+    db.exec('DELETE FROM npc_state');
     db.exec('DELETE FROM room_npcs');
 
     const roomIds = worldManager.getAllRoomIds();
