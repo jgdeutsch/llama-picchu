@@ -59,6 +59,7 @@ const COMMAND_ALIASES: Record<string, string> = {
   get: 'take',
   grab: 'take',
   pick: 'take',
+  ask: 'talk',  // "ask lydia about clothes" = "talk lydia about clothes"
 };
 
 export interface CommandContext {

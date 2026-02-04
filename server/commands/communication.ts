@@ -4,7 +4,7 @@ import { worldManager } from '../managers/worldManager';
 import { playerManager } from '../managers/playerManager';
 import { npcManager } from '../managers/npcManager';
 import { getDatabase, playerQueries, roomNpcQueries } from '../database';
-import { generateNpcSpeechReaction, addNpcMemory } from '../services/geminiService';
+import { generateNpcSpeechReaction, addNpcMemory, addToConversationHistory } from '../services/geminiService';
 import { npcTemplates, getNpcPersonalityPrompt } from '../data/npcs';
 import type { CommandContext } from './index';
 
@@ -294,6 +294,10 @@ async function generateAndSendNpcReaction(
 
         // Record this NPC as the last speaker in the room (for contextual social reactions)
         recordRoomSpeaker(ctx.roomId, 'npc', npc.npcTemplateId, template.name, reaction.response);
+
+        // Add to conversation history for context in future exchanges
+        addToConversationHistory(ctx.playerId, npc.npcTemplateId, 'player', message);
+        addToConversationHistory(ctx.playerId, npc.npcTemplateId, 'npc', reaction.response);
       }
     } else {
       // Fallback: NPC always does something minimal
@@ -403,14 +407,28 @@ function processTell(ctx: CommandContext): void {
     const template = npcTemplates.find(t => t.id === npc.npcTemplateId);
     if (!template) continue;
 
-    const firstName = template.name.split(' ')[0].toLowerCase();
     const fullName = template.name.toLowerCase();
+    const nameParts = fullName.split(' ');
 
-    if (firstName === targetNameLower || fullName.startsWith(targetNameLower)) {
+    // Match if:
+    // 1. Full name starts with target (e.g., "tailor" matches "Tailor Lydia")
+    // 2. Any significant name part matches (e.g., "lydia" matches "Tailor Lydia")
+    if (fullName.startsWith(targetNameLower)) {
       matchedNpc = npc;
       matchedTemplate = template;
       break;
     }
+
+    // Check each name part (skip common titles like "old", "the")
+    for (const part of nameParts) {
+      if (part.length < 3 || ['the', 'old', 'young', 'sir', 'lady'].includes(part)) continue;
+      if (part === targetNameLower || part.startsWith(targetNameLower)) {
+        matchedNpc = npc;
+        matchedTemplate = template;
+        break;
+      }
+    }
+    if (matchedNpc) break;
   }
 
   // If we found an NPC, tell them directly
@@ -510,6 +528,13 @@ async function triggerDirectNpcResponse(
 
       // Send response only to the player who asked
       sendOutput(ctx.playerId, `${template.name} tells you, "${reaction.response}"`);
+
+      // Track conversation history for context
+      addToConversationHistory(ctx.playerId, npc.npcTemplateId, 'player', message);
+      addToConversationHistory(ctx.playerId, npc.npcTemplateId, 'npc', reaction.response);
+
+      // Record room speaker for contextual socials
+      recordRoomSpeaker(ctx.roomId, 'npc', npc.npcTemplateId, template.name, reaction.response);
     } else {
       // Minimal acknowledgment
       sendOutput(ctx.playerId, `\n${template.name} nods at you but doesn't respond.`);

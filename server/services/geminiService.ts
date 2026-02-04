@@ -50,6 +50,80 @@ export interface NpcMemoryEntry {
   decayedAt?: Date; // When memory was compacted/faded
 }
 
+// === CONVERSATION HISTORY TRACKING ===
+// Tracks recent conversation exchanges between players and NPCs
+// This allows NPCs to remember what was said in the current conversation
+
+interface ConversationEntry {
+  role: 'player' | 'npc';
+  content: string;
+  timestamp: number;
+}
+
+// Key: "playerId-npcId", Value: recent conversation entries
+const conversationHistories: Map<string, ConversationEntry[]> = new Map();
+
+// Maximum entries to keep per conversation
+const MAX_CONVERSATION_LENGTH = 20;
+// Conversation expires after 10 minutes of no activity
+const CONVERSATION_EXPIRY_MS = 10 * 60 * 1000;
+
+function getConversationKey(playerId: number, npcId: number): string {
+  return `${playerId}-${npcId}`;
+}
+
+// Add an entry to the conversation history
+export function addToConversationHistory(
+  playerId: number,
+  npcId: number,
+  role: 'player' | 'npc',
+  content: string
+): void {
+  const key = getConversationKey(playerId, npcId);
+  let history = conversationHistories.get(key) || [];
+
+  // Clean up old entries (expired)
+  const now = Date.now();
+  history = history.filter(entry => now - entry.timestamp < CONVERSATION_EXPIRY_MS);
+
+  // Add new entry
+  history.push({
+    role,
+    content,
+    timestamp: now
+  });
+
+  // Trim to max length
+  if (history.length > MAX_CONVERSATION_LENGTH) {
+    history = history.slice(-MAX_CONVERSATION_LENGTH);
+  }
+
+  conversationHistories.set(key, history);
+}
+
+// Get recent conversation history as ConversationMessage array
+export function getConversationHistory(playerId: number, npcId: number): ConversationMessage[] {
+  const key = getConversationKey(playerId, npcId);
+  const history = conversationHistories.get(key) || [];
+
+  const now = Date.now();
+
+  // Filter out expired entries and convert to ConversationMessage format
+  return history
+    .filter(entry => now - entry.timestamp < CONVERSATION_EXPIRY_MS)
+    .map(entry => ({
+      role: entry.role,
+      content: entry.content,
+      timestamp: new Date(entry.timestamp)
+    }));
+}
+
+// Clear conversation history (e.g., when player leaves area)
+export function clearConversationHistory(playerId: number, npcId: number): void {
+  const key = getConversationKey(playerId, npcId);
+  conversationHistories.delete(key);
+}
+
 export interface CachedResponse {
   id: number;
   npcId: number;

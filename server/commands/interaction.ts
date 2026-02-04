@@ -16,6 +16,8 @@ import {
   getNpcMemoriesOfPlayer,
   getDaysSinceLastMeeting,
   getTimeOfDay,
+  getConversationHistory,
+  addToConversationHistory,
   type ConversationContext,
   type NpcMemoryEntry,
 } from '../services/geminiService';
@@ -476,9 +478,15 @@ async function processTalk(ctx: CommandContext): Promise<void> {
   // Show thinking indicator for longer conversations
   sendOutput(ctx.playerId, `\n${template.name} considers your words...`);
 
+  // Record the player's message in conversation history BEFORE generating response
+  addToConversationHistory(ctx.playerId, npc.npcTemplateId, 'player', message);
+
   try {
     // Generate response using Gemini LLM
     const response = await generateNpcResponse(conversationContext, message);
+
+    // Record the NPC's response in conversation history
+    addToConversationHistory(ctx.playerId, npc.npcTemplateId, 'npc', response);
 
     // Display the NPC's response
     sendOutput(ctx.playerId, `\n${template.name} says, "${response}"\n`);
@@ -576,6 +584,9 @@ async function buildConversationContext(
   const { hour } = npcLifeManager.getGameTime();
   const timeOfDay = getTimeOfDay();
 
+  // Get recent conversation history with this NPC
+  const conversationHistory = getConversationHistory(playerId, npcTemplateId);
+
   // Build the context object
   const context: ConversationContext = {
     npcId: npcTemplateId,
@@ -592,7 +603,7 @@ async function buildConversationContext(
     recentMemories: memories.recent,
     longTermMemories: memories.longTerm,
     worldContext: worldContext,
-    conversationHistory: [], // We could track this per-session if needed
+    conversationHistory: conversationHistory,
     timeOfDay: timeOfDay,
     daysSinceLastMeeting: daysSince,
   };
