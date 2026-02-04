@@ -764,9 +764,11 @@ class NPCLifeManager {
 
     // Get active NPCs (player was nearby recently)
     const activeNpcs = db.prepare(`
-      SELECT * FROM npc_state
-      WHERE is_active = 1
-        AND last_player_nearby > datetime('now', '-5 minutes')
+      SELECT ns.*, rn.npc_template_id
+      FROM npc_state ns
+      JOIN room_npcs rn ON ns.npc_instance_id = rn.id
+      WHERE ns.is_active = 1
+        AND ns.last_player_nearby > datetime('now', '-5 minutes')
     `).all() as any[];
 
     for (const npc of activeNpcs) {
@@ -788,6 +790,12 @@ class NPCLifeManager {
           }
         }
       }
+
+      // ~8% chance per tick (every 10 sec) to spontaneously interact with a player
+      // This means an NPC will speak roughly every 2 minutes on average
+      if (Math.random() < 0.08) {
+        this.triggerSpontaneousInteraction(npc);
+      }
     }
 
     // Deactivate NPCs that haven't had a player nearby for 5+ minutes
@@ -797,6 +805,111 @@ class NPCLifeManager {
       WHERE is_active = 1
         AND last_player_nearby < datetime('now', '-5 minutes')
     `).run();
+  }
+
+  // NPC spontaneously speaks to or emotes at a player in their room
+  private async triggerSpontaneousInteraction(npcState: any): Promise<void> {
+    const template = getNpcById(npcState.npc_template_id);
+    if (!template || template.type === 'enemy') return;
+
+    // Get players in this NPC's room
+    const playersInRoom = worldManager.getPlayersInRoom(npcState.current_room);
+    if (playersInRoom.length === 0) return;
+
+    // Pick a random player
+    const targetPlayerId = playersInRoom[Math.floor(Math.random() * playersInRoom.length)];
+    const db = getDatabase();
+    const player = playerQueries.findById(db).get(targetPlayerId) as { name: string; level: number; gold: number } | undefined;
+    if (!player) return;
+
+    const personality = getNpcPersonalityPrompt(npcState.npc_template_id);
+
+    // Generate a spontaneous comment based on NPC type
+    try {
+      const comment = await this.generateSpontaneousComment(
+        template,
+        personality,
+        npcState,
+        player.name,
+        player.level,
+        player.gold
+      );
+
+      if (comment) {
+        connectionManager.sendToPlayer(targetPlayerId, {
+          type: 'output',
+          text: `\n${template.name} says to you, "${comment}"`,
+          messageType: 'chat',
+        });
+      }
+    } catch (error) {
+      console.error('[NPCLife] Spontaneous interaction error:', error);
+    }
+  }
+
+  // Generate a context-aware spontaneous comment from an NPC
+  private async generateSpontaneousComment(
+    template: any,
+    personality: string,
+    npcState: any,
+    playerName: string,
+    playerLevel: number,
+    playerGold: number
+  ): Promise<string | null> {
+    const { generateNpcResponse } = await import('../services/geminiService');
+    const { itemTemplates } = require('../data/items');
+
+    // Build a simple context for the spontaneous comment
+    let context = '';
+
+    // Shopkeepers try to sell
+    if (template.type === 'shopkeeper' && template.shopInventory) {
+      const items = template.shopInventory.slice(0, 3).map((si: any) => {
+        const it = itemTemplates.find((t: any) => t.id === si.itemTemplateId);
+        const price = Math.floor((it?.value || 10) * si.buyPriceMultiplier);
+        return it ? `${it.name} (${price}g)` : null;
+      }).filter(Boolean);
+
+      if (items.length > 0) {
+        context = `You're a shopkeeper. You sell: ${items.join(', ')}. The player ${playerName} is browsing. `;
+        context += playerGold < 20 ? 'They look broke. Suggest how they could earn gold.' : 'Make a sales pitch!';
+      }
+    } else if (template.type === 'questgiver') {
+      context = `You might have work for ${playerName}. Hint at an opportunity or task.`;
+    } else {
+      // Ambient NPCs - make small talk or observations
+      const topics = [
+        `Comment on the weather or time of day`,
+        `Share a rumor or observation about the village`,
+        `Ask ${playerName} where they're headed`,
+        `Mention something about your current task: ${npcState.current_task || 'relaxing'}`,
+        `Make a philosophical observation about life in Gamehenge`,
+      ];
+      context = topics[Math.floor(Math.random() * topics.length)];
+    }
+
+    const prompt = `You are ${template.name}. Personality: ${personality}
+
+Generate ONE short spontaneous comment (under 20 words) to ${playerName} who is nearby.
+Context: ${context}
+
+Keep it natural - like something you'd say to someone in passing. No greeting needed.`;
+
+    try {
+      const { GoogleGenerativeAI } = require('@google/generative-ai');
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+      const result = await model.generateContent(prompt);
+      const response = result.response.text().trim().replace(/^["']|["']$/g, '');
+
+      // Skip if too long or seems like a non-response
+      if (response.length > 150 || response.length < 5) return null;
+
+      return response;
+    } catch (error) {
+      return null;
+    }
   }
 
   // Trigger random NPC chatter (gossip or shout)
