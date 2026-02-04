@@ -169,21 +169,42 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
     if (mentionedNpc) break;
   }
 
-  // If an NPC was mentioned, they ALWAYS respond first
-  // Otherwise, pick a random NPC
-  const primaryNpc = mentionedNpc || friendlyNpcs[Math.floor(Math.random() * friendlyNpcs.length)];
-  const primaryTemplate = mentionedTemplate || npcTemplates.find(t => t.id === primaryNpc.npcTemplateId);
+  // If an NPC was mentioned by name, ONLY they respond - no one else
+  if (mentionedNpc && mentionedTemplate) {
+    console.log(`[NPC Speech] Only ${mentionedTemplate.name} will respond (was addressed directly)`);
+    await generateAndSendNpcReaction(ctx, mentionedNpc, mentionedTemplate, message, true);
+    return;
+  }
+
+  // No one was mentioned specifically - pick a random NPC to respond
+  // But only if the message seems conversational (not just "ok" or "yes")
+  if (message.length < 4 && !message.includes('?')) {
+    // Very short message with no question mark - probably a reply to an ongoing conversation
+    // Check if there's a recent speaker they might be responding to
+    const lastSpeaker = getLastRoomSpeaker(ctx.roomId);
+    if (lastSpeaker && lastSpeaker.speakerType === 'npc') {
+      // They're probably responding to the last NPC who spoke
+      const lastNpc = friendlyNpcs.find(n => n.npcTemplateId === lastSpeaker.speakerId);
+      const lastTemplate = lastNpc ? npcTemplates.find(t => t.id === lastNpc.npcTemplateId) : null;
+      if (lastNpc && lastTemplate) {
+        console.log(`[NPC Speech] Short reply "${message}" - routing to last speaker: ${lastTemplate.name}`);
+        await generateAndSendNpcReaction(ctx, lastNpc, lastTemplate, message, true);
+        return;
+      }
+    }
+  }
+
+  // Generic speech - one random NPC responds
+  const primaryNpc = friendlyNpcs[Math.floor(Math.random() * friendlyNpcs.length)];
+  const primaryTemplate = npcTemplates.find(t => t.id === primaryNpc.npcTemplateId);
   if (!primaryTemplate) return;
 
-  // Mark this as a direct interaction if they were mentioned by name
-  const wasMentioned = mentionedNpc !== null;
+  console.log(`[NPC Speech] Generic speech - ${primaryTemplate.name} will respond`);
+  await generateAndSendNpcReaction(ctx, primaryNpc, primaryTemplate, message, false);
 
-  // Generate reaction for primary NPC
-  await generateAndSendNpcReaction(ctx, primaryNpc, primaryTemplate, message, wasMentioned);
-
-  // If the message doesn't mention anyone specific and there are multiple NPCs,
-  // there's a chance another NPC might also chime in
-  if (!wasMentioned && friendlyNpcs.length > 1 && Math.random() < 0.3) {
+  // Very small chance (10%) for ONE other NPC to also chime in - but only for general statements
+  // NOT for short replies
+  if (message.length > 10 && friendlyNpcs.length > 1 && Math.random() < 0.1) {
     const otherNpcs = friendlyNpcs.filter(n => n.npcTemplateId !== primaryNpc.npcTemplateId);
     if (otherNpcs.length > 0) {
       const secondaryNpc = otherNpcs[Math.floor(Math.random() * otherNpcs.length)];
@@ -192,7 +213,7 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
         // Small delay before secondary NPC responds
         setTimeout(() => {
           generateAndSendNpcReaction(ctx, secondaryNpc, secondaryTemplate, message, false);
-        }, 1500);
+        }, 2000);
       }
     }
   }

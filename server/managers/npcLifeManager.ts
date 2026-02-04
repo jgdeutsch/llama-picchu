@@ -832,7 +832,8 @@ class NPCLifeManager {
         npcState,
         player.name,
         player.level,
-        player.gold
+        player.gold,
+        targetPlayerId
       );
 
       if (comment) {
@@ -854,46 +855,62 @@ class NPCLifeManager {
     npcState: any,
     playerName: string,
     playerLevel: number,
-    playerGold: number
+    playerGold: number,
+    playerId: number
   ): Promise<string | null> {
-    const { generateNpcResponse } = await import('../services/geminiService');
+    const { getConversationHistory, addToConversationHistory } = await import('../services/geminiService');
     const { itemTemplates } = require('../data/items');
 
-    // Build a simple context for the spontaneous comment
+    // Check if we have recent conversation history with this player
+    const conversationHistory = getConversationHistory(playerId, template.id);
+    const hasRecentConvo = conversationHistory.length > 0;
+
+    // Build context based on NPC type and conversation state
     let context = '';
+    let conversationContext = '';
 
-    // Shopkeepers try to sell
-    if (template.type === 'shopkeeper' && template.shopInventory) {
-      const items = template.shopInventory.slice(0, 3).map((si: any) => {
-        const it = itemTemplates.find((t: any) => t.id === si.itemTemplateId);
-        const price = Math.floor((it?.value || 10) * si.buyPriceMultiplier);
-        return it ? `${it.name} (${price}g)` : null;
-      }).filter(Boolean);
-
-      if (items.length > 0) {
-        context = `You're a shopkeeper. You sell: ${items.join(', ')}. The player ${playerName} is browsing. `;
-        context += playerGold < 20 ? 'They look broke. Suggest how they could earn gold.' : 'Make a sales pitch!';
-      }
-    } else if (template.type === 'questgiver') {
-      context = `You might have work for ${playerName}. Hint at an opportunity or task.`;
+    if (hasRecentConvo) {
+      // We've been talking - continue the conversation naturally
+      const lastExchanges = conversationHistory.slice(-4);
+      conversationContext = '\nRECENT CONVERSATION:\n' + lastExchanges.map(m =>
+        `${m.role === 'player' ? playerName : template.name}: ${m.content}`
+      ).join('\n');
+      context = `Continue your conversation naturally. Reference what was discussed. Be helpful and guide them.`;
     } else {
-      // Ambient NPCs - make small talk or observations
-      const topics = [
-        `Comment on the weather or time of day`,
-        `Share a rumor or observation about the village`,
-        `Ask ${playerName} where they're headed`,
-        `Mention something about your current task: ${npcState.current_task || 'relaxing'}`,
-        `Make a philosophical observation about life in Gamehenge`,
-      ];
-      context = topics[Math.floor(Math.random() * topics.length)];
+      // New interaction - initiate based on NPC type
+      if (template.type === 'shopkeeper' && template.shopInventory) {
+        const items = template.shopInventory.slice(0, 3).map((si: any) => {
+          const it = itemTemplates.find((t: any) => t.id === si.itemTemplateId);
+          const price = Math.floor((it?.value || 10) * si.buyPriceMultiplier);
+          return it ? `${it.name} (${price}g)` : null;
+        }).filter(Boolean);
+
+        if (items.length > 0) {
+          context = `You're a shopkeeper. You sell: ${items.join(', ')}. ${playerName} is browsing. `;
+          context += playerGold < 20 ? 'They look broke. Suggest how they could earn gold.' : 'Make a sales pitch!';
+        }
+      } else if (template.type === 'questgiver') {
+        context = `You might have work for ${playerName}. Hint at an opportunity or task.`;
+      } else {
+        // Ambient NPCs - make small talk or observations
+        const topics = [
+          `Comment on the weather or time of day`,
+          `Share a rumor or observation about the village`,
+          `Ask ${playerName} where they're headed`,
+          `Mention something about your current task: ${npcState.current_task || 'relaxing'}`,
+          `Make a philosophical observation about life in Gamehenge`,
+        ];
+        context = topics[Math.floor(Math.random() * topics.length)];
+      }
     }
 
     const prompt = `You are ${template.name}. Personality: ${personality}
+${conversationContext}
 
 Generate ONE short spontaneous comment (under 20 words) to ${playerName} who is nearby.
 Context: ${context}
 
-Keep it natural - like something you'd say to someone in passing. No greeting needed.`;
+${hasRecentConvo ? 'Continue the conversation - reference what was already discussed!' : 'Keep it natural - like something you\'d say to someone in passing.'}`;
 
     try {
       const { GoogleGenerativeAI } = require('@google/generative-ai');
@@ -905,6 +922,9 @@ Keep it natural - like something you'd say to someone in passing. No greeting ne
 
       // Skip if too long or seems like a non-response
       if (response.length > 150 || response.length < 5) return null;
+
+      // Track this in conversation history so the NPC remembers they said it
+      addToConversationHistory(playerId, template.id, 'npc', response);
 
       return response;
     } catch (error) {

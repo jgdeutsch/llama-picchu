@@ -863,18 +863,24 @@ export async function generateNpcSpeechReaction(
     else if (relationship.capital < -30) relationshipContext += ' (you dislike them)';
   }
 
+  // Get conversation history for context
+  const conversationHistory = getConversationHistory(playerId, npcId);
+  let conversationContext = '';
+  if (conversationHistory.length > 0) {
+    const recentExchanges = conversationHistory.slice(-6);
+    conversationContext = '\nRECENT CONVERSATION WITH THIS PLAYER:\n' +
+      recentExchanges.map(m => `${m.role === 'player' ? playerName : npcName}: ${m.content}`).join('\n') +
+      '\n\nIMPORTANT: Continue the conversation naturally! If they say "sure" or "yes", respond to what YOU just asked them!';
+  }
+
   const prompt = `You are ${npcName} in a room. Personality: ${npcPersonality}
 ${npcCurrentTask ? `You're currently ${npcCurrentTask}.` : 'You\'re idle.'}
 Your relationship with ${playerName}: ${relationshipContext}
+${conversationContext}
 
-${playerName} just said out loud: "${playerSpeech}"
+${playerName} just said: "${playerSpeech}"
 
-IMPORTANT: Most of the time, just respond with SPEECH only. Emotes should be RARE - only use them for:
-- Strong emotional reactions (surprise, anger, laughter)
-- When you DON'T have anything to say but want to acknowledge them
-- Dramatic moments
-
-For normal conversation, JUST SPEAK. No emote needed.
+CRITICAL: If there's conversation history above, CONTINUE that conversation! If you asked a question and they answered, RESPOND to their answer!
 
 Format your response EXACTLY as:
 EMOTE_1ST: NONE
@@ -882,31 +888,11 @@ EMOTE_2ND: NONE
 EMOTE_3RD: NONE
 SPEECH: [your response]
 
-If you DO need an emote (rare!), provide all three perspectives starting lowercase:
-EMOTE_1ST: [your perspective]
+If you need an emote, provide all three perspectives:
+EMOTE_1ST: [your perspective, lowercase]
 EMOTE_2ND: [what ${playerName} sees]
 EMOTE_3RD: [what others see]
-SPEECH: [words, or NONE if emote-only]
-
-Examples of GOOD responses:
-
-Just speech (MOST COMMON):
-EMOTE_1ST: NONE
-EMOTE_2ND: NONE
-EMOTE_3RD: NONE
-SPEECH: Good morning to you too.
-
-Emote only (when you have nothing to say):
-EMOTE_1ST: nod in greeting.
-EMOTE_2ND: nods at you in greeting.
-EMOTE_3RD: nods at ${playerName} in greeting.
-SPEECH: NONE
-
-Both (RARE - only for strong reactions):
-EMOTE_1ST: burst out laughing.
-EMOTE_2ND: bursts out laughing.
-EMOTE_3RD: bursts out laughing.
-SPEECH: Ha! That's the funniest thing I've heard all day!`;
+SPEECH: [words, or NONE if emote-only]`;
 
   try {
     const result = await model.generateContent(prompt);
