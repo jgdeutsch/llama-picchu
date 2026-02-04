@@ -1363,24 +1363,44 @@ function processContext(ctx: CommandContext): void {
 
   const db = getDatabase();
 
-  // Find NPC in current room
-  const npcsInRoom = npcManager.getNpcsInRoom(ctx.roomId);
-  const matchingNpc = npcsInRoom.find(npc => {
-    const template = npcTemplates.find(t => t.id === npc.templateId);
-    return template?.name.toLowerCase().includes(targetName) ||
-           template?.keywords?.some(k => k.toLowerCase().includes(targetName));
+  // Find ALL NPCs that match the name (not just in room)
+  const matchingTemplates = npcTemplates.filter(t => {
+    const nameLower = t.name.toLowerCase();
+    const nameParts = nameLower.split(' ');
+    // Match full name, any part of name, or keywords
+    return nameLower.includes(targetName) ||
+           nameParts.some(part => part.includes(targetName) || targetName.includes(part)) ||
+           t.keywords?.some(k => k.toLowerCase().includes(targetName));
   });
 
-  if (!matchingNpc) {
-    sendOutput(ctx.playerId, `You don't see ${targetName} here.`);
+  if (matchingTemplates.length === 0) {
+    sendOutput(ctx.playerId, `No one named "${targetName}" exists in Gamehenge.`);
     return;
   }
 
-  const template = npcTemplates.find(t => t.id === matchingNpc.templateId);
-  if (!template) {
-    sendOutput(ctx.playerId, "Can't get context for this NPC.");
+  // If multiple matches, ask for clarification
+  if (matchingTemplates.length > 1) {
+    const names = matchingTemplates.map(t => t.name).join('\n  • ');
+    sendOutput(ctx.playerId, `Multiple people match "${targetName}":\n  • ${names}\n\nPlease be more specific.`);
     return;
   }
+
+  const template = matchingTemplates[0];
+
+  // Find the NPC instance (they might be in any room)
+  const npcInstance = db.prepare(`
+    SELECT rn.id, rn.room_id, rn.npc_template_id
+    FROM room_npcs rn
+    WHERE rn.npc_template_id = ?
+    LIMIT 1
+  `).get(template.id) as { id: number; room_id: string; npc_template_id: number } | undefined;
+
+  const npcRoomId = npcInstance?.room_id || 'unknown';
+
+  // Get room name for display
+  const npcRoom = worldManager.getRoom(npcRoomId);
+  const npcRoomName = npcRoom?.name || npcRoomId;
+  const isInSameRoom = npcRoomId === ctx.roomId;
 
   const lines: string[] = [];
   lines.push(`\n${'='.repeat(50)}`);
@@ -1392,6 +1412,7 @@ function processContext(ctx: CommandContext): void {
   lines.push(`Name: ${template.name}`);
   lines.push(`Role: ${template.role || template.type}`);
   lines.push(`Keywords: ${template.keywords?.join(', ') || 'none'}`);
+  lines.push(`Location: ${npcRoomName}${isInSameRoom ? ' (here with you)' : ''}`);
   lines.push('');
 
   // Current state
@@ -1401,7 +1422,7 @@ function processContext(ctx: CommandContext): void {
     JOIN room_npcs rn ON ns.npc_instance_id = rn.id
     WHERE rn.npc_template_id = ?
     LIMIT 1
-  `).get(matchingNpc.templateId) as {
+  `).get(template.id) as {
     current_task: string | null;
     task_progress: number;
     energy: number;
@@ -1425,7 +1446,7 @@ function processContext(ctx: CommandContext): void {
     WHERE npc_instance_id IN (SELECT id FROM room_npcs WHERE npc_template_id = ?)
     ORDER BY status DESC, created_at DESC
     LIMIT 5
-  `).all(matchingNpc.templateId) as Array<{
+  `).all(template.id) as Array<{
     task_type: string;
     description: string;
     status: string;
@@ -1458,7 +1479,7 @@ function processContext(ctx: CommandContext): void {
     WHERE npc_template_id = ? AND status != 'fulfilled'
     ORDER BY priority DESC
     LIMIT 5
-  `).all(matchingNpc.templateId) as Array<{
+  `).all(template.id) as Array<{
     want_type: string;
     target: string;
     priority: number;
@@ -1478,7 +1499,7 @@ function processContext(ctx: CommandContext): void {
   lines.push('');
 
   // Opinion of player
-  const memory = npcManager.getNpcMemory(matchingNpc.templateId, ctx.playerId);
+  const memory = npcManager.getNpcMemory(template.id, ctx.playerId);
   const disposition = memory?.disposition ?? 50;
   const trustLevel = getDispositionTrustLevel(disposition);
 
@@ -1504,7 +1525,7 @@ function processContext(ctx: CommandContext): void {
     WHERE npc_id = ?
     ORDER BY affinity DESC
     LIMIT 10
-  `).all(matchingNpc.templateId) as Array<{
+  `).all(template.id) as Array<{
     target_npc_id: number;
     relationship_type: string;
     affinity: number;
@@ -1534,7 +1555,7 @@ function processContext(ctx: CommandContext): void {
     WHERE npc_id = ?
     ORDER BY created_at DESC
     LIMIT 5
-  `).all(matchingNpc.templateId) as Array<{
+  `).all(template.id) as Array<{
     about_npc_id: number;
     content: string;
     importance: number;
@@ -1552,13 +1573,13 @@ function processContext(ctx: CommandContext): void {
     lines.push('');
   }
 
-  // Room context
-  const roomData = buildRoomPhysicalContext(ctx.roomId, matchingNpc.templateId);
-  lines.push(`--- PHYSICAL CONTEXT ---`);
+  // Room context (from the NPC's current location)
+  const roomData = buildRoomPhysicalContext(npcRoomId, template.id);
+  lines.push(`--- PHYSICAL CONTEXT (from ${npcRoomName}) ---`);
   lines.push(`Room items: ${roomData.roomItems.length > 0 ? roomData.roomItems.join(', ') : 'none'}`);
   lines.push(`Exits: ${roomData.roomExits.join(', ')}`);
   if (roomData.nearbyRooms.length > 0) {
-    lines.push(`Nearby:`);
+    lines.push(`Nearby rooms:`);
     for (const nearby of roomData.nearbyRooms) {
       lines.push(`  ${nearby.direction}: ${nearby.name}${nearby.items.length > 0 ? ` [${nearby.items.join(', ')}]` : ''}`);
     }
@@ -1569,7 +1590,7 @@ function processContext(ctx: CommandContext): void {
   lines.push('');
 
   // Personality
-  const personality = getNpcPersonalityPrompt(matchingNpc.templateId);
+  const personality = getNpcPersonalityPrompt(template.id);
   lines.push(`--- PERSONALITY ---`);
   lines.push(personality.substring(0, 500) + (personality.length > 500 ? '...' : ''));
 
