@@ -8,6 +8,7 @@ import { npcManager } from '../managers/npcManager';
 import { getDatabase, roomNpcQueries } from '../database';
 import { npcTemplates, getNpcPersonalityPrompt } from '../data/npcs';
 import { generateNpcSpeechReaction, addNpcMemory } from '../services/geminiService';
+import { getLastRoomSpeaker, recordRoomSpeaker } from './communication';
 import type { CommandContext } from './index';
 
 // Social definition: messages for self, target, and observers
@@ -957,28 +958,59 @@ async function triggerNpcSoloSocialReactions(ctx: CommandContext, social: Social
 
   if (friendlyNpcs.length === 0) return;
 
-  // Pick one random NPC to react (don't spam with all NPCs reacting)
-  const randomNpc = friendlyNpcs[Math.floor(Math.random() * friendlyNpcs.length)];
-  const template = npcTemplates.find(t => t.id === randomNpc.npcTemplateId);
-  if (!template) return;
+  // Check if someone spoke recently in the room - the social is likely about them
+  const lastSpeaker = getLastRoomSpeaker(ctx.roomId);
 
-  const personality = getNpcPersonalityPrompt(randomNpc.npcTemplateId);
+  // If the last speaker was an NPC, they should react (the social is probably about them)
+  // Otherwise pick a random NPC
+  let reactingNpc: typeof friendlyNpcs[0];
+  let reactingTemplate: typeof npcTemplates[0] | undefined;
+
+  if (lastSpeaker && lastSpeaker.speakerType === 'npc') {
+    // Find the NPC who spoke last
+    const speakerNpc = friendlyNpcs.find(npc => npc.npcTemplateId === lastSpeaker.speakerId);
+    if (speakerNpc) {
+      reactingNpc = speakerNpc;
+      reactingTemplate = npcTemplates.find(t => t.id === speakerNpc.npcTemplateId);
+    } else {
+      // Speaker left the room, pick random
+      reactingNpc = friendlyNpcs[Math.floor(Math.random() * friendlyNpcs.length)];
+      reactingTemplate = npcTemplates.find(t => t.id === reactingNpc.npcTemplateId);
+    }
+  } else {
+    // No recent speaker or it was a player, pick random
+    reactingNpc = friendlyNpcs[Math.floor(Math.random() * friendlyNpcs.length)];
+    reactingTemplate = npcTemplates.find(t => t.id === reactingNpc.npcTemplateId);
+  }
+
+  if (!reactingTemplate) return;
+
+  const personality = getNpcPersonalityPrompt(reactingNpc.npcTemplateId);
 
   // Get relationship
   const relationship = db.prepare(`
     SELECT trust_level FROM social_capital
     WHERE player_id = ? AND npc_id = ?
-  `).get(ctx.playerId, randomNpc.npcTemplateId) as { trust_level: string } | undefined;
+  `).get(ctx.playerId, reactingNpc.npcTemplateId) as { trust_level: string } | undefined;
 
   const trustLevel = relationship?.trust_level || 'stranger';
 
-  // Describe what the player did
-  const actionDesc = social.noTarget.others.replace('{actor}', ctx.playerName);
+  // Build a richer action description that includes context about what they might be reacting to
+  let actionDesc = social.noTarget.others.replace('{actor}', ctx.playerName);
+
+  // If there was a recent speaker, mention that context
+  if (lastSpeaker && lastSpeaker.speakerType === 'npc' && lastSpeaker.speakerId === reactingNpc.npcTemplateId) {
+    // The player is doing this social right after this NPC spoke - it's about what they said
+    actionDesc = `${ctx.playerName} ${social.name}s after hearing you say "${lastSpeaker.whatTheySaid.substring(0, 60)}"`;
+  } else if (lastSpeaker && lastSpeaker.speakerType === 'npc') {
+    // A different NPC spoke - the social might be about that
+    actionDesc = `${ctx.playerName} ${social.name}s (${lastSpeaker.speakerName} just said something)`;
+  }
 
   try {
     const reaction = await generateNpcSpeechReaction(
-      randomNpc.npcTemplateId,
-      template.name,
+      reactingNpc.npcTemplateId,
+      reactingTemplate.name,
       personality,
       null,
       ctx.playerId,
@@ -989,13 +1021,15 @@ async function triggerNpcSoloSocialReactions(ctx: CommandContext, social: Social
 
     if (reaction) {
       if (reaction.emote) {
-        sendOutput(ctx.playerId, `\n${template.name} ${reaction.emote}`);
+        sendOutput(ctx.playerId, `\n${reactingTemplate.name} ${reaction.emote}`);
       }
       if (reaction.response) {
         if (reaction.emote) {
           await new Promise(resolve => setTimeout(resolve, 300));
         }
-        sendOutput(ctx.playerId, `${template.name} says, "${reaction.response}"`);
+        sendOutput(ctx.playerId, `${reactingTemplate.name} says, "${reaction.response}"`);
+        // Record this NPC as the new last speaker
+        recordRoomSpeaker(ctx.roomId, 'npc', reactingNpc.npcTemplateId, reactingTemplate.name, reaction.response);
       }
     } else {
       // Fallback: NPC always does something minimal
@@ -1006,12 +1040,12 @@ async function triggerNpcSoloSocialReactions(ctx: CommandContext, social: Social
         'raises an eyebrow.',
       ];
       const fallback = fallbackEmotes[Math.floor(Math.random() * fallbackEmotes.length)];
-      sendOutput(ctx.playerId, `\n${template.name} ${fallback}`);
+      sendOutput(ctx.playerId, `\n${reactingTemplate.name} ${fallback}`);
     }
   } catch (error) {
     console.error(`[Solo Social NPC Reaction] Error:`, error);
     // Fallback on error
-    sendOutput(ctx.playerId, `\n${template.name} glances your way.`);
+    sendOutput(ctx.playerId, `\n${reactingTemplate.name} glances your way.`);
   }
 }
 

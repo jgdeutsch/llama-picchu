@@ -11,6 +11,47 @@ import type { CommandContext } from './index';
 // Track the last NPC each player interacted with (for "reply" command)
 const lastNpcInteraction: Map<number, { npcId: number; npcName: string; roomId: string }> = new Map();
 
+// Track the last speaker in each room (for contextual social reactions)
+// When an NPC speaks in a room, we record it so that if a player does a solo
+// social (like "laugh") shortly after, we know who they're laughing at
+interface RoomLastSpeaker {
+  speakerType: 'npc' | 'player';
+  speakerId: number;  // NPC template ID or player ID
+  speakerName: string;
+  whatTheySaid: string;
+  timestamp: number;
+}
+const roomLastSpeaker: Map<string, RoomLastSpeaker> = new Map();
+
+// Record when someone speaks in a room (call this when NPC or player says something)
+export function recordRoomSpeaker(
+  roomId: string,
+  speakerType: 'npc' | 'player',
+  speakerId: number,
+  speakerName: string,
+  whatTheySaid: string
+): void {
+  roomLastSpeaker.set(roomId, {
+    speakerType,
+    speakerId,
+    speakerName,
+    whatTheySaid,
+    timestamp: Date.now()
+  });
+}
+
+// Get the last speaker in a room (returns undefined if too old - 60 seconds)
+export function getLastRoomSpeaker(roomId: string): RoomLastSpeaker | undefined {
+  const speaker = roomLastSpeaker.get(roomId);
+  if (!speaker) return undefined;
+
+  // Only return if within 60 seconds (relevant context window)
+  const ageMs = Date.now() - speaker.timestamp;
+  if (ageMs > 60000) return undefined;
+
+  return speaker;
+}
+
 // Get the last NPC a player spoke to
 export function getLastNpcInteraction(playerId: number): { npcId: number; npcName: string; roomId: string } | undefined {
   return lastNpcInteraction.get(playerId);
@@ -250,6 +291,9 @@ async function generateAndSendNpcReaction(
 
         // Track this NPC as the last one the player talked to (for "reply" command)
         setLastNpcInteraction(ctx.playerId, npc.npcTemplateId, template.name, ctx.roomId);
+
+        // Record this NPC as the last speaker in the room (for contextual social reactions)
+        recordRoomSpeaker(ctx.roomId, 'npc', npc.npcTemplateId, template.name, reaction.response);
       }
     } else {
       // Fallback: NPC always does something minimal
