@@ -128,13 +128,21 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
     console.log(`[NPC Speech] ${template.name} reaction:`, JSON.stringify(reaction), `hasReaction: ${hasReaction}`);
 
     if (hasReaction) {
-      // Send emote if present
+      // Send emote if present - use 2nd person POV for the target player
       if (reaction.emote) {
-        console.log(`[NPC Speech] Sending emote: "${template.name} ${reaction.emote}"`);
-        sendOutput(ctx.playerId, `\n${template.name} ${reaction.emote}`);
+        console.log(`[NPC Speech] Sending emote (2nd person): "${reaction.emote.second}"`);
+        sendOutput(ctx.playerId, `\n${reaction.emote.second}`);
+
+        // Send 3rd person to other players in room
+        const playersInRoom = worldManager.getPlayersInRoom(ctx.roomId);
+        for (const otherId of playersInRoom) {
+          if (otherId !== ctx.playerId) {
+            sendOutput(otherId, `\n${reaction.emote.third}`);
+          }
+        }
       }
 
-      // Send response if present
+      // Send response if present - same for everyone
       if (reaction.response) {
         // Small delay if there was an emote
         if (reaction.emote) {
@@ -142,19 +150,42 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
         }
         console.log(`[NPC Speech] Sending response: "${template.name} says, ${reaction.response}"`);
         sendOutput(ctx.playerId, `${template.name} says, "${reaction.response}"`);
+
+        // Send to other players too
+        const playersInRoom = worldManager.getPlayersInRoom(ctx.roomId);
+        for (const otherId of playersInRoom) {
+          if (otherId !== ctx.playerId) {
+            sendOutput(otherId, `${template.name} says, "${reaction.response}"`);
+          }
+        }
       }
     } else {
       // Fallback: NPC always does something minimal
-      const fallbackEmotes = [
-        'glances up briefly.',
-        'looks over.',
-        'pauses for a moment.',
-        'tilts their head slightly.',
-        'acknowledges you with a nod.',
+      const fallbackEmotes2nd = [
+        `${template.name} glances up at you briefly.`,
+        `${template.name} looks over at you.`,
+        `${template.name} pauses for a moment.`,
+        `${template.name} tilts their head slightly towards you.`,
+        `${template.name} acknowledges you with a nod.`,
       ];
-      const fallback = fallbackEmotes[Math.floor(Math.random() * fallbackEmotes.length)];
-      console.log(`[NPC Speech] Using fallback: "${template.name} ${fallback}"`);
-      sendOutput(ctx.playerId, `\n${template.name} ${fallback}`);
+      const fallbackEmotes3rd = [
+        `${template.name} glances up at ${ctx.playerName} briefly.`,
+        `${template.name} looks over at ${ctx.playerName}.`,
+        `${template.name} pauses for a moment.`,
+        `${template.name} tilts their head slightly towards ${ctx.playerName}.`,
+        `${template.name} acknowledges ${ctx.playerName} with a nod.`,
+      ];
+      const idx = Math.floor(Math.random() * fallbackEmotes2nd.length);
+      console.log(`[NPC Speech] Using fallback: "${fallbackEmotes2nd[idx]}"`);
+      sendOutput(ctx.playerId, `\n${fallbackEmotes2nd[idx]}`);
+
+      // Send 3rd person to others
+      const playersInRoom = worldManager.getPlayersInRoom(ctx.roomId);
+      for (const otherId of playersInRoom) {
+        if (otherId !== ctx.playerId) {
+          sendOutput(otherId, `\n${fallbackEmotes3rd[idx]}`);
+        }
+      }
     }
   } catch (error) {
     // Fallback on error - NPC still reacts

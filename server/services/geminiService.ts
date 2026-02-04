@@ -727,8 +727,18 @@ Rewritten description:`;
   }
 }
 
+// NPC reaction with all three POVs (1st person for NPC, 2nd person for target, 3rd person for observers)
+export interface NpcReactionPOV {
+  emote?: {
+    first: string;   // What the NPC sees: "You nod towards Rift."
+    second: string;  // What the target sees: "Innkeeper Antelope nods towards you."
+    third: string;   // What others see: "Innkeeper Antelope nods towards Rift."
+  };
+  response?: string; // Speech is the same for everyone
+}
+
 // Generate NPC reaction to something a player said in the room
-// NPCs overhear speech and may react with emotes or responses
+// Returns all three POVs for proper MUD-style messaging
 export async function generateNpcSpeechReaction(
   npcId: number,
   npcName: string,
@@ -738,7 +748,7 @@ export async function generateNpcSpeechReaction(
   playerName: string,
   playerSpeech: string,
   trustLevel: string
-): Promise<{ emote?: string; response?: string } | null> {
+): Promise<NpcReactionPOV | null> {
   // Note: Caller can decide whether to call this function based on their own randomness
   // This function will always try to generate a reaction when called
   const db = getDatabase();
@@ -762,44 +772,59 @@ Your relationship with ${playerName}: ${relationshipContext}
 
 ${playerName} just said out loud: "${playerSpeech}"
 
-How do you react? You can:
-1. Emote only (action, no words): "*looks up briefly, then returns to work*"
-2. Comment (short remark): "Hmph. Interesting."
-3. Both: "*glances over* That reminds me of something..."
-4. Ignore: respond with NONE
+How do you react? Provide your reaction in THREE perspectives:
+- 1ST (what you see): "You nod towards ${playerName}."
+- 2ND (what ${playerName} sees): "${npcName} nods towards you."
+- 3RD (what others see): "${npcName} nods towards ${playerName}."
 
 Your response should be IN CHARACTER and reflect your relationship.
-If they said something rude, react accordingly.
-If they said something kind, show appreciation.
-If it's just casual chatter, a brief acknowledgment is fine.
+If it's casual chatter, a brief acknowledgment is fine.
 
-Format your response as:
-EMOTE: [action if any, or NONE]
-SPEECH: [words if any, or NONE]`;
+Format your response EXACTLY as:
+EMOTE_1ST: [your perspective, or NONE]
+EMOTE_2ND: [${playerName}'s perspective, or NONE]
+EMOTE_3RD: [others' perspective, or NONE]
+SPEECH: [words you say out loud, or NONE]
+
+Example response:
+EMOTE_1ST: You glance up from your work and nod.
+EMOTE_2ND: ${npcName} glances up from their work and nods at you.
+EMOTE_3RD: ${npcName} glances up from their work and nods at ${playerName}.
+SPEECH: Evening.`;
 
   try {
     const result = await model.generateContent(prompt);
     const text = result.response.text().trim();
 
     // Parse the response
-    const emoteMatch = text.match(/EMOTE:\s*(.+?)(?:\n|$)/i);
+    const emote1stMatch = text.match(/EMOTE_1ST:\s*(.+?)(?:\n|$)/i);
+    const emote2ndMatch = text.match(/EMOTE_2ND:\s*(.+?)(?:\n|$)/i);
+    const emote3rdMatch = text.match(/EMOTE_3RD:\s*(.+?)(?:\n|$)/i);
     const speechMatch = text.match(/SPEECH:\s*(.+?)(?:\n|$)/i);
 
-    const emote = emoteMatch?.[1]?.trim();
+    const emote1st = emote1stMatch?.[1]?.trim();
+    const emote2nd = emote2ndMatch?.[1]?.trim();
+    const emote3rd = emote3rdMatch?.[1]?.trim();
     const speech = speechMatch?.[1]?.trim();
 
-    if ((!emote || emote.toUpperCase() === 'NONE') && (!speech || speech.toUpperCase() === 'NONE')) {
+    const hasEmote = emote1st && emote1st.toUpperCase() !== 'NONE';
+    const hasSpeech = speech && speech.toUpperCase() !== 'NONE';
+
+    if (!hasEmote && !hasSpeech) {
       return null;
     }
 
-    const reaction: { emote?: string; response?: string } = {};
+    const reaction: NpcReactionPOV = {};
 
-    if (emote && emote.toUpperCase() !== 'NONE') {
-      // Clean up emote format
-      reaction.emote = emote.replace(/^\*|\*$/g, '');
+    if (hasEmote && emote2nd && emote3rd) {
+      reaction.emote = {
+        first: emote1st!.replace(/^\*|\*$/g, ''),
+        second: emote2nd.replace(/^\*|\*$/g, '').replace(/^["']|["']$/g, ''),
+        third: emote3rd.replace(/^\*|\*$/g, '').replace(/^["']|["']$/g, ''),
+      };
     }
-    if (speech && speech.toUpperCase() !== 'NONE') {
-      reaction.response = speech.replace(/^["']|["']$/g, '');
+    if (hasSpeech) {
+      reaction.response = speech!.replace(/^["']|["']$/g, '');
     }
 
     return reaction;
