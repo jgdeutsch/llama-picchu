@@ -220,13 +220,14 @@ export const roomTemplates: RoomTemplate[] = [
   {
     id: 'market_district',
     name: 'Market District',
-    description: 'Despite Wilson\'s taxes, commerce survives here. Stalls sell everything from vegetables to handmade crafts. The Lizards have learned to hide their best goods from the tax collectors. A blacksmith\'s hammer rings steadily from a forge to the east, and the smell of fresh bread drifts from a bakery to the south. The tailor\'s colorful fabrics catch your eye to the west.',
+    description: 'Despite Wilson\'s taxes, commerce survives here. Stalls sell everything from vegetables to handmade crafts. The Lizards have learned to hide their best goods from the tax collectors. A blacksmith\'s hammer rings from a forge to the northeast, fresh bread drifts from a bakery to the southeast, and the tailor\'s colorful fabrics catch your eye to the southwest. The main square lies to the west, and the inn is to the north.',
     area: 'village',
     exits: [
-      { direction: 'west', targetRoom: 'tailor_shop' },
+      { direction: 'west', targetRoom: 'village_square' },
       { direction: 'north', targetRoom: 'the_inn' },
-      { direction: 'east', targetRoom: 'blacksmith_forge' },
-      { direction: 'south', targetRoom: 'bakery' },
+      { direction: 'northeast', targetRoom: 'blacksmith_forge' },
+      { direction: 'southeast', targetRoom: 'bakery' },
+      { direction: 'southwest', targetRoom: 'tailor_shop' },
     ],
     flags: { safe: true },
     defaultItems: [],
@@ -248,7 +249,7 @@ export const roomTemplates: RoomTemplate[] = [
     description: 'The warmth hits you first, then the smell - fresh bread, sweet rolls, and something with cinnamon. Possum the baker works behind a flour-dusted counter, pulling loaves from a great stone oven. Shelves display the day\'s offerings, and a few small tables invite customers to linger.',
     area: 'village',
     exits: [
-      { direction: 'north', targetRoom: 'market_district' },
+      { direction: 'northwest', targetRoom: 'market_district' },
     ],
     flags: { safe: true },
     defaultItems: [
@@ -275,7 +276,7 @@ export const roomTemplates: RoomTemplate[] = [
     description: 'Bolts of fabric lean against the walls. A worn mannequin stands in the corner, draped with samples. Lydia the tailor works at a sewing table, her needle flashing in and out of cloth. Finished garments hang from hooks - sturdy linen shirts, wool pants, leather boots, and grey traveling cloaks. Type "look lydia" to see prices.',
     area: 'village',
     exits: [
-      { direction: 'east', targetRoom: 'market_district' },
+      { direction: 'northeast', targetRoom: 'market_district' },
     ],
     flags: { safe: true },
     defaultItems: [],
@@ -325,7 +326,7 @@ export const roomTemplates: RoomTemplate[] = [
   {
     id: 'the_inn',
     name: 'The Divided Sky Inn',
-    description: 'This cozy inn is the social heart of the village. A fire crackles in a stone hearth, and the smell of stew fills the air. Travelers and locals share tables, swapping stories and complaints about Wilson. The innkeeper keeps a careful ear - you never know who might be a spy. Music sometimes fills the room when someone brave enough picks up a lute.',
+    description: 'This cozy inn is the social heart of the village. A fire crackles in a stone hearth, and the smell of stew fills the air. Travelers and locals share tables, swapping stories and complaints about Wilson. The innkeeper keeps a careful ear - you never know who might be a spy. Music sometimes fills the room when someone brave enough picks up a lute. The market lies to the south.',
     area: 'village',
     exits: [
       { direction: 'south', targetRoom: 'market_district' },
@@ -343,7 +344,7 @@ export const roomTemplates: RoomTemplate[] = [
     description: 'The heat from the forge is intense. Gordo the blacksmith hammers away at hot metal, sparks flying with each strike. Tools of all kinds hang from the walls - shovels, axes, hoes, and yes, a few weapons hidden in the back. His daughter Elena manages the front, keeping the books.',
     area: 'village',
     exits: [
-      { direction: 'west', targetRoom: 'market_district' },
+      { direction: 'southwest', targetRoom: 'market_district' },
     ],
     flags: { safe: true },
     defaultItems: [],

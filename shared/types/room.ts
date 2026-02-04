@@ -1,7 +1,7 @@
 // Room-related types for Llama Picchu MUD
 
-export type Direction = 'north' | 'south' | 'east' | 'west' | 'up' | 'down';
-export type DirectionShort = 'n' | 's' | 'e' | 'w' | 'u' | 'd';
+export type Direction = 'north' | 'south' | 'east' | 'west' | 'up' | 'down' | 'northeast' | 'northwest' | 'southeast' | 'southwest';
+export type DirectionShort = 'n' | 's' | 'e' | 'w' | 'u' | 'd' | 'ne' | 'nw' | 'se' | 'sw';
 
 export const DIRECTION_MAP: Record<DirectionShort, Direction> = {
   n: 'north',
@@ -10,6 +10,10 @@ export const DIRECTION_MAP: Record<DirectionShort, Direction> = {
   w: 'west',
   u: 'up',
   d: 'down',
+  ne: 'northeast',
+  nw: 'northwest',
+  se: 'southeast',
+  sw: 'southwest',
 };
 
 export const DIRECTION_OPPOSITES: Record<Direction, Direction> = {
@@ -19,6 +23,10 @@ export const DIRECTION_OPPOSITES: Record<Direction, Direction> = {
   west: 'east',
   up: 'down',
   down: 'up',
+  northeast: 'southwest',
+  northwest: 'southeast',
+  southeast: 'northwest',
+  southwest: 'northeast',
 };
 
 export interface RoomExit {
