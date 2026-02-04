@@ -514,6 +514,138 @@ class WorldManager {
   getRoomCount(): number {
     return this.rooms.size;
   }
+
+  // Find a path from one room to another using BFS
+  // Returns array of directions to take, or null if no path found
+  findPath(fromRoomId: string, toRoomId: string, maxDepth: number = 15): string[] | null {
+    if (fromRoomId === toRoomId) return [];
+
+    const fromRoom = this.getRoom(fromRoomId);
+    if (!fromRoom) return null;
+
+    // BFS queue: [currentRoomId, path of directions taken]
+    const queue: [string, string[]][] = [[fromRoomId, []]];
+    const visited = new Set<string>();
+    visited.add(fromRoomId);
+
+    while (queue.length > 0) {
+      const [currentRoomId, path] = queue.shift()!;
+
+      // Don't search too deep
+      if (path.length >= maxDepth) continue;
+
+      const currentRoom = this.getRoom(currentRoomId);
+      if (!currentRoom?.exits) continue;
+
+      for (const [direction, targetRoomId] of Object.entries(currentRoom.exits)) {
+        if (visited.has(targetRoomId)) continue;
+        visited.add(targetRoomId);
+
+        const newPath = [...path, direction];
+
+        // Found the target!
+        if (targetRoomId === toRoomId) {
+          return newPath;
+        }
+
+        queue.push([targetRoomId, newPath]);
+      }
+    }
+
+    return null; // No path found
+  }
+
+  // Find path to a room by name (partial match)
+  findPathToRoomByName(fromRoomId: string, targetName: string): { roomId: string; path: string[] } | null {
+    const targetNameLower = targetName.toLowerCase();
+
+    // First, find the room that matches the name
+    let targetRoomId: string | null = null;
+    for (const [roomId, room] of this.rooms.entries()) {
+      if (room.name.toLowerCase().includes(targetNameLower)) {
+        targetRoomId = roomId;
+        break;
+      }
+    }
+
+    if (!targetRoomId) return null;
+
+    const path = this.findPath(fromRoomId, targetRoomId);
+    if (!path) return null;
+
+    return { roomId: targetRoomId, path };
+  }
+
+  // Get the next direction to move towards a target room
+  getNextStepTowards(fromRoomId: string, toRoomId: string): string | null {
+    const path = this.findPath(fromRoomId, toRoomId);
+    if (!path || path.length === 0) return null;
+    return path[0];
+  }
+
+  // Get a map of known places for an NPC based on their affiliation/type
+  // Returns roomId -> room name for places they would know about
+  getKnownPlaces(npcType: string, npcAffiliation?: string): Map<string, string> {
+    const knownPlaces = new Map<string, string>();
+
+    // Everyone knows the main village locations
+    const commonPlaces = [
+      'village_square', 'market_district', 'the_inn', 'lizard_homes_west',
+      'lizard_homes_east', 'general_store', 'blacksmith_forge', 'bakery',
+      'tailor_shop', 'farmlands', 'river_crossing'
+    ];
+
+    for (const roomId of commonPlaces) {
+      const room = this.getRoom(roomId);
+      if (room) {
+        knownPlaces.set(roomId, room.name);
+      }
+    }
+
+    // Add faction-specific locations
+    if (npcAffiliation === 'prussia' || npcType === 'guard') {
+      const prussiaPlaces = ['prussia_gate', 'wilson_castle_hall', 'guard_barracks', 'castle_kitchen'];
+      for (const roomId of prussiaPlaces) {
+        const room = this.getRoom(roomId);
+        if (room) knownPlaces.set(roomId, room.name);
+      }
+    }
+
+    if (npcAffiliation === 'resistance' || npcType === 'resistance') {
+      const resistancePlaces = ['tela_cottage', 'hidden_glade', 'underground_tunnels'];
+      for (const roomId of resistancePlaces) {
+        const room = this.getRoom(roomId);
+        if (room) knownPlaces.set(roomId, room.name);
+      }
+    }
+
+    if (npcType === 'merchant' || npcType === 'shopkeeper') {
+      const merchantPlaces = ['market_district', 'general_store', 'the_inn'];
+      for (const roomId of merchantPlaces) {
+        const room = this.getRoom(roomId);
+        if (room) knownPlaces.set(roomId, room.name);
+      }
+    }
+
+    if (npcType === 'farmer') {
+      const farmerPlaces = ['farmlands', 'lizard_homes_west', 'general_store'];
+      for (const roomId of farmerPlaces) {
+        const room = this.getRoom(roomId);
+        if (room) knownPlaces.set(roomId, room.name);
+      }
+    }
+
+    // Forest folk know the forest
+    if (npcAffiliation === 'forest' || npcType === 'hermit') {
+      const forestPlaces = ['forest_edge', 'deep_forest', 'great_tree', 'fee_burrow'];
+      for (const roomId of forestPlaces) {
+        const room = this.getRoom(roomId);
+        if (room) knownPlaces.set(roomId, room.name);
+      }
+    }
+
+    return knownPlaces;
+  }
 }
 
 export const worldManager = new WorldManager();

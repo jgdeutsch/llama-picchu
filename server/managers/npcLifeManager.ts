@@ -164,10 +164,19 @@ const NPC_LOCATIONS: Record<number, { home: string; work: string }> = {
   122: { home: 'village_square', work: 'village_square' },        // Town Crier Barnaby
 };
 
+// Track NPC movement goals - NPCs walking towards destinations
+interface NpcMovementGoal {
+  targetRoom: string;
+  path: string[];      // Remaining directions to take
+  reason?: string;     // Why they're going there
+  startedAt: number;
+}
+
 class NPCLifeManager {
   private gameHour: number = 8; // Start at 8am
   private lastHourUpdate: number = Date.now();
   private readonly HOUR_DURATION_MS = 60000; // 1 minute real time = 1 game hour
+  private npcMovementGoals: Map<number, NpcMovementGoal> = new Map();
 
   // Initialize NPC states when server starts
   initializeNpcStates(): void {
@@ -652,6 +661,9 @@ class NPCLifeManager {
       this.onHourChange();
     }
 
+    // Process NPC movement (walking to destinations)
+    this.processNpcMovement();
+
     // Process active NPCs (those with players nearby)
     this.processActiveNpcs();
   }
@@ -700,7 +712,178 @@ class NPCLifeManager {
     }
   }
 
-  // Move an NPC to a new room
+  // Set a movement goal for an NPC - they will walk there step by step
+  setNpcMovementGoal(npcInstanceId: number, targetRoom: string, reason?: string): void {
+    const db = getDatabase();
+
+    // Get current state
+    const state = db.prepare(`
+      SELECT ns.*, rn.npc_template_id
+      FROM npc_state ns
+      JOIN room_npcs rn ON ns.npc_instance_id = rn.id
+      WHERE ns.npc_instance_id = ?
+    `).get(npcInstanceId) as any;
+
+    if (!state) return;
+
+    // If already there, no need to move
+    if (state.current_room === targetRoom) return;
+
+    // Find the path
+    const path = worldManager.findPath(state.current_room, targetRoom);
+    if (!path || path.length === 0) {
+      console.log(`[NPCLife] No path found from ${state.current_room} to ${targetRoom}`);
+      return;
+    }
+
+    // Store the movement goal
+    this.npcMovementGoals.set(npcInstanceId, {
+      targetRoom,
+      path,
+      reason: reason || 'heading somewhere',
+      startedAt: Date.now()
+    });
+
+    const template = getNpcById(state.npc_template_id);
+    console.log(`[NPCLife] ${template?.name || 'NPC'} is heading to ${targetRoom} (${path.length} steps)`);
+  }
+
+  // Process NPC movement goals - move one step towards their destination
+  processNpcMovement(): void {
+    const db = getDatabase();
+
+    for (const [npcInstanceId, goal] of this.npcMovementGoals.entries()) {
+      if (goal.path.length === 0) {
+        this.npcMovementGoals.delete(npcInstanceId);
+        continue;
+      }
+
+      // Get current state
+      const state = db.prepare(`
+        SELECT ns.*, rn.npc_template_id, rn.room_id
+        FROM npc_state ns
+        JOIN room_npcs rn ON ns.npc_instance_id = rn.id
+        WHERE ns.npc_instance_id = ?
+      `).get(npcInstanceId) as any;
+
+      if (!state) {
+        this.npcMovementGoals.delete(npcInstanceId);
+        continue;
+      }
+
+      const template = getNpcById(state.npc_template_id);
+      if (!template) {
+        this.npcMovementGoals.delete(npcInstanceId);
+        continue;
+      }
+
+      // Take the next step
+      const direction = goal.path.shift()!;
+      const currentRoom = worldManager.getRoom(state.current_room);
+      if (!currentRoom?.exits?.[direction]) {
+        // Path is blocked, recalculate
+        const newPath = worldManager.findPath(state.current_room, goal.targetRoom);
+        if (newPath && newPath.length > 0) {
+          goal.path = newPath;
+        } else {
+          this.npcMovementGoals.delete(npcInstanceId);
+        }
+        continue;
+      }
+
+      const nextRoom = currentRoom.exits[direction];
+      this.moveNpcOneStep(npcInstanceId, state.current_room, nextRoom, direction, template, goal.reason);
+
+      // If we've arrived, clear the goal
+      if (goal.path.length === 0) {
+        this.npcMovementGoals.delete(npcInstanceId);
+      }
+    }
+  }
+
+  // Move an NPC one step to an adjacent room
+  private moveNpcOneStep(
+    npcInstanceId: number,
+    fromRoom: string,
+    toRoom: string,
+    direction: string,
+    template: any,
+    reason?: string
+  ): void {
+    const db = getDatabase();
+
+    // Update both tables
+    db.prepare(`UPDATE npc_state SET current_room = ? WHERE npc_instance_id = ?`).run(toRoom, npcInstanceId);
+    db.prepare(`UPDATE room_npcs SET room_id = ? WHERE id = ?`).run(toRoom, npcInstanceId);
+
+    // Get direction text
+    const directionText = this.getDirectionText(direction);
+
+    // Notify players in old room
+    const playersInOld = worldManager.getPlayersInRoom(fromRoom);
+    for (const pid of playersInOld) {
+      connectionManager.sendToPlayer(pid, {
+        type: 'output',
+        text: `${template.name} heads ${directionText}.`,
+        messageType: 'movement'
+      });
+    }
+
+    // Notify players in new room
+    const playersInNew = worldManager.getPlayersInRoom(toRoom);
+    const fromRoomData = worldManager.getRoom(fromRoom);
+    const fromDirection = this.getOppositeDirection(direction);
+
+    for (const pid of playersInNew) {
+      connectionManager.sendToPlayer(pid, {
+        type: 'output',
+        text: `${template.name} arrives from the ${fromDirection}.`,
+        messageType: 'movement'
+      });
+    }
+
+    // If players are in the new room, generate/update purpose
+    if (playersInNew.length > 0) {
+      const state = db.prepare(`SELECT * FROM npc_state WHERE npc_instance_id = ?`).get(npcInstanceId) as any;
+      this.generateAndStorePurpose(
+        npcInstanceId,
+        template,
+        state,
+        toRoom,
+        reason || state?.current_task || 'passing through'
+      );
+    }
+  }
+
+  // Convert direction abbreviation to readable text
+  private getDirectionText(direction: string): string {
+    const dirMap: Record<string, string> = {
+      n: 'north', s: 'south', e: 'east', w: 'west',
+      ne: 'northeast', nw: 'northwest', se: 'southeast', sw: 'southwest',
+      u: 'up', d: 'down',
+      north: 'north', south: 'south', east: 'east', west: 'west',
+      northeast: 'northeast', northwest: 'northwest',
+      southeast: 'southeast', southwest: 'southwest',
+      up: 'up', down: 'down'
+    };
+    return dirMap[direction.toLowerCase()] || direction;
+  }
+
+  // Get opposite direction
+  private getOppositeDirection(direction: string): string {
+    const opposites: Record<string, string> = {
+      n: 'south', s: 'north', e: 'west', w: 'east',
+      ne: 'southwest', nw: 'southeast', se: 'northwest', sw: 'northeast',
+      u: 'below', d: 'above',
+      north: 'south', south: 'north', east: 'west', west: 'east',
+      northeast: 'southwest', northwest: 'southeast',
+      southeast: 'northwest', southwest: 'northeast',
+      up: 'below', down: 'above'
+    };
+    return opposites[direction.toLowerCase()] || 'somewhere';
+  }
+
+  // Legacy teleport move - used for schedule-based movement when player isn't watching
   private moveNpc(npcInstanceId: number, targetRoom: string, scheduleActivity?: string): void {
     const db = getDatabase();
 
@@ -719,41 +902,19 @@ class NPCLifeManager {
 
     const oldRoom = state.current_room;
 
-    // Update both tables
+    // Check if any players are watching - if so, use step-by-step movement
+    const playersInOld = worldManager.getPlayersInRoom(oldRoom);
+    const playersInNew = worldManager.getPlayersInRoom(targetRoom);
+
+    if (playersInOld.length > 0 || playersInNew.length > 0) {
+      // Use pathfinding for visible movement
+      this.setNpcMovementGoal(npcInstanceId, targetRoom, scheduleActivity);
+      return;
+    }
+
+    // No players watching - teleport directly
     db.prepare(`UPDATE npc_state SET current_room = ? WHERE npc_instance_id = ?`).run(targetRoom, npcInstanceId);
     db.prepare(`UPDATE room_npcs SET room_id = ? WHERE id = ?`).run(targetRoom, npcInstanceId);
-
-    // Notify players in old room
-    const playersInOld = worldManager.getPlayersInRoom(oldRoom);
-    for (const pid of playersInOld) {
-      connectionManager.sendToPlayer(pid, {
-        type: 'output',
-        text: `${template.name} leaves.`,
-        messageType: 'movement'
-      });
-    }
-
-    // Check if there are players in the new room - if so, generate a purpose
-    const playersInNew = worldManager.getPlayersInRoom(targetRoom);
-    if (playersInNew.length > 0) {
-      // Generate a purpose for why this NPC is coming to this room
-      this.generateAndStorePurpose(
-        npcInstanceId,
-        template,
-        state,
-        targetRoom,
-        scheduleActivity || state.current_task || 'wander'
-      );
-    }
-
-    // Notify players in new room
-    for (const pid of playersInNew) {
-      connectionManager.sendToPlayer(pid, {
-        type: 'output',
-        text: `${template.name} arrives.`,
-        messageType: 'movement'
-      });
-    }
   }
 
   // Generate and store a purpose for an NPC in their current room
