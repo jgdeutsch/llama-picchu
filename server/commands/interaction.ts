@@ -146,21 +146,16 @@ async function processLookAt(ctx: CommandContext): Promise<void> {
   for (const p of playersInRoom) {
     if (p.name.toLowerCase().includes(target)) {
       const classDef = playerManager.getClassDefinition(p.class_id);
-      const equipmentDesc = buildEquipmentDescription(p.id, p.id === ctx.playerId);
+      const equipmentDesc = buildFullEquipmentList(p.id, p.id === ctx.playerId);
+      const appearanceDesc = appearanceManager.buildAppearanceDescription(p.id);
+      const conditionDesc = buildConditionDescription(p.id, p.id === ctx.playerId);
+
       if (p.id === ctx.playerId) {
-        // Looking at yourself - include appearance/cleanliness
-        const appearanceDesc = appearanceManager.buildAppearanceDescription(p.id);
-        sendOutput(ctx.playerId, `\nYou examine yourself. You are ${p.name}, a level ${p.level} ${classDef?.name || 'llama'}.\n${equipmentDesc}\n\n${appearanceDesc}\n`);
+        // Looking at yourself
+        sendOutput(ctx.playerId, `\nYou examine yourself. You are ${p.name}, a level ${p.level} ${classDef?.name || 'llama'}.\n\n${conditionDesc}\n\n${equipmentDesc}\n\n${appearanceDesc}\n`);
       } else {
-        // Looking at another player - mention if they're dirty/bloody
-        const otherAppearance = appearanceManager.getPlayerAppearance(p.id);
-        let appearanceNote = '';
-        if (otherAppearance.bloodiness > 30) {
-          appearanceNote = `\nThey ${otherAppearance.bloodinessDesc}.`;
-        } else if (otherAppearance.cleanliness < 40) {
-          appearanceNote = `\nThey look ${otherAppearance.cleanlinessDesc}.`;
-        }
-        sendOutput(ctx.playerId, `\nYou see ${p.name}, a level ${p.level} ${classDef?.name || 'llama'}.\n${equipmentDesc}${appearanceNote}\n`);
+        // Looking at another player - show full details
+        sendOutput(ctx.playerId, `\nYou observe ${p.name}, a level ${p.level} ${classDef?.name || 'llama'}.\n\n${conditionDesc}\n\n${equipmentDesc}\n\n${appearanceDesc}\n`);
       }
       return;
     }
@@ -655,7 +650,122 @@ async function buildConversationContext(
   return context;
 }
 
-// Build a detailed list of what someone is wearing/carrying (for look command)
+// Build player condition description (HP, mana, stamina, hunger/thirst)
+function buildConditionDescription(playerId: number, isSelf: boolean): string {
+  const db = getDatabase();
+  const player = playerQueries.findById(db).get(playerId) as {
+    hp: number;
+    max_hp: number;
+    mana: number;
+    max_mana: number;
+    stamina: number;
+    max_stamina: number;
+    hunger: number;
+    thirst: number;
+    is_fighting: number;
+  } | undefined;
+
+  if (!player) return 'Condition unknown.';
+
+  const lines: string[] = [];
+  const pronoun = isSelf ? 'You' : 'They';
+  const possessive = isSelf ? 'Your' : 'Their';
+  const verb = isSelf ? 'are' : 'are';
+
+  // HP status
+  const hpPercent = Math.floor((player.hp / player.max_hp) * 100);
+  let hpDesc = '';
+  if (hpPercent >= 90) hpDesc = 'in excellent health';
+  else if (hpPercent >= 70) hpDesc = 'in good health';
+  else if (hpPercent >= 50) hpDesc = 'slightly wounded';
+  else if (hpPercent >= 30) hpDesc = 'moderately wounded';
+  else if (hpPercent >= 15) hpDesc = 'badly wounded';
+  else hpDesc = 'critically injured';
+
+  lines.push(`${pronoun} ${verb} ${hpDesc}. (HP: ${player.hp}/${player.max_hp})`);
+
+  // Combat status
+  if (player.is_fighting) {
+    lines.push(`${pronoun} ${verb} currently in combat!`);
+  }
+
+  // Mana status
+  const manaPercent = Math.floor((player.mana / player.max_mana) * 100);
+  let manaDesc = '';
+  if (manaPercent >= 80) manaDesc = 'brimming with magical energy';
+  else if (manaPercent >= 50) manaDesc = 'has adequate mana reserves';
+  else if (manaPercent >= 20) manaDesc = 'running low on mana';
+  else manaDesc = 'nearly drained of mana';
+  lines.push(`${possessive} aura ${isSelf ? 'is' : 'appears'} ${manaDesc}. (Mana: ${player.mana}/${player.max_mana})`);
+
+  // Stamina status
+  const stamPercent = Math.floor((player.stamina / player.max_stamina) * 100);
+  let stamDesc = '';
+  if (stamPercent >= 80) stamDesc = 'well-rested and energetic';
+  else if (stamPercent >= 50) stamDesc = 'a bit tired';
+  else if (stamPercent >= 20) stamDesc = 'fatigued';
+  else stamDesc = 'exhausted';
+  lines.push(`${pronoun} look${isSelf ? '' : 's'} ${stamDesc}. (Stamina: ${player.stamina}/${player.max_stamina})`);
+
+  // Hunger/thirst (only visible to self or if severe)
+  if (isSelf) {
+    let hungerDesc = '';
+    if (player.hunger >= 80) hungerDesc = 'well-fed';
+    else if (player.hunger >= 50) hungerDesc = 'a bit hungry';
+    else if (player.hunger >= 20) hungerDesc = 'hungry';
+    else hungerDesc = 'starving';
+
+    let thirstDesc = '';
+    if (player.thirst >= 80) thirstDesc = 'hydrated';
+    else if (player.thirst >= 50) thirstDesc = 'a bit thirsty';
+    else if (player.thirst >= 20) thirstDesc = 'thirsty';
+    else thirstDesc = 'parched';
+
+    lines.push(`${pronoun} feel ${hungerDesc} and ${thirstDesc}. (Hunger: ${player.hunger}/100, Thirst: ${player.thirst}/100)`);
+  } else {
+    // Only show severe states for others
+    if (player.hunger < 20) {
+      lines.push(`${pronoun} look${isSelf ? '' : 's'} like ${pronoun.toLowerCase()} hasn't eaten in days.`);
+    }
+    if (player.thirst < 20) {
+      lines.push(`${possessive} lips are cracked from dehydration.`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+// Build full slot-by-slot equipment list for looking at someone
+function buildFullEquipmentList(playerId: number, isSelf: boolean): string {
+  const equipment = playerManager.getEquipment(playerId);
+  const pronoun = isSelf ? 'Your' : 'Their';
+
+  const getItemName = (itemId: number | null): string => {
+    if (!itemId) return 'Nothing';
+    const template = itemTemplates.find((t) => t.id === itemId);
+    return template?.name || 'Nothing';
+  };
+
+  const lines = [
+    `=== ${pronoun} Equipment ===`,
+    '',
+    `Head:       ${getItemName(equipment.head)}`,
+    `Neck:       ${getItemName(equipment.neck)}`,
+    `Body:       ${getItemName(equipment.body)}`,
+    `Back:       ${getItemName(equipment.back)}`,
+    `Hands:      ${getItemName(equipment.hands)}`,
+    `Legs:       ${getItemName(equipment.legs)}`,
+    `Feet:       ${getItemName(equipment.feet)}`,
+    `Main Hand:  ${getItemName(equipment.mainHand)}`,
+    `Off Hand:   ${getItemName(equipment.offHand)}`,
+    `Ring 1:     ${getItemName(equipment.ring1)}`,
+    `Ring 2:     ${getItemName(equipment.ring2)}`,
+  ];
+
+  return lines.join('\n');
+}
+
+// Build a brief description of what someone is wearing/carrying (for NPC context)
 function buildEquipmentDescription(playerId: number, isSelf: boolean): string {
   const equipment = playerManager.getEquipment(playerId);
   const lines: string[] = [];

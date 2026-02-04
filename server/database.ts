@@ -394,6 +394,20 @@ export function initializeDatabase(): void {
     )
   `);
 
+  // NPC-to-NPC Memories - what NPCs remember about each other
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS npc_npc_memories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      npc_id INTEGER NOT NULL,              -- Who remembers
+      about_npc_id INTEGER NOT NULL,        -- Who they remember about
+      content TEXT NOT NULL,                -- What they remember
+      importance INTEGER DEFAULT 5,          -- 1-10, higher = more memorable
+      emotional_valence INTEGER DEFAULT 0,   -- -5 to +5, negative = bad memory
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (npc_id) REFERENCES room_npcs(npc_template_id)
+    )
+  `);
+
   // NPC Interests & Personality Traits (for richer interactions)
   database.exec(`
     CREATE TABLE IF NOT EXISTS npc_interests (

@@ -270,6 +270,75 @@ class AppearanceManager {
 
     return modifier;
   }
+
+  // Determine room dirt level based on room characteristics
+  getRoomDirtLevel(roomId: string): string {
+    // Dungeons and underground are filthy
+    if (roomId.includes('dungeon') || roomId.includes('underground') || roomId.includes('sewer')) {
+      return 'filthy';
+    }
+
+    // Forges, stables, farmlands are dirty
+    if (roomId.includes('forge') || roomId.includes('stable') || roomId.includes('farm') || roomId.includes('barn')) {
+      return 'dirty';
+    }
+
+    // Outdoor forest/wilderness areas are muddy
+    if (roomId.includes('forest') || roomId.includes('swamp') || roomId.includes('marsh') || roomId.includes('stream')) {
+      return 'muddy';
+    }
+
+    // Castle and clean indoor areas
+    if (roomId.includes('castle') || roomId.includes('tower') || roomId.includes('hall')) {
+      return 'clean';
+    }
+
+    // Default for most areas (shops, inn, village)
+    return 'dusty';
+  }
+
+  // Process cleanliness decay for all connected players
+  // Called periodically by the game loop
+  tick(connectedPlayerIds: number[], getPlayerRoom: (playerId: number) => string | null): void {
+    const db = getDatabase();
+
+    for (const playerId of connectedPlayerIds) {
+      try {
+        const roomId = getPlayerRoom(playerId);
+        if (!roomId) continue;
+
+        const dirtLevel = this.getRoomDirtLevel(roomId);
+        const decay = ROOM_DIRT_DECAY[dirtLevel] || 0;
+
+        if (decay > 0) {
+          // Decay is small per tick - about 1 point per 5-10 minutes depending on area
+          // filthy rooms: 5 * 0.5 = 2.5 per tick (every 5 min = ~30 per hour)
+          // dirty rooms: 3 * 0.5 = 1.5 per tick
+          // muddy rooms: 4 * 0.5 = 2 per tick
+          // dusty rooms: 1 * 0.5 = 0.5 per tick (every 5 min = ~6 per hour)
+          const actualDecay = decay * 0.5;
+
+          db.prepare(`
+            UPDATE player_appearance
+            SET cleanliness = MAX(0, cleanliness - ?)
+            WHERE player_id = ?
+          `).run(actualDecay, playerId);
+
+          // Create record if doesn't exist (for new players)
+          const changes = db.prepare(`SELECT changes()`).get() as { 'changes()': number };
+          if (changes['changes()'] === 0) {
+            // New player - start at 70 cleanliness minus decay
+            db.prepare(`
+              INSERT INTO player_appearance (player_id, cleanliness, bloodiness)
+              VALUES (?, ?, 0)
+            `).run(playerId, Math.max(0, 70 - actualDecay));
+          }
+        }
+      } catch (error) {
+        console.error(`[Appearance] Error processing cleanliness for player ${playerId}:`, error);
+      }
+    }
+  }
 }
 
 export const appearanceManager = new AppearanceManager();

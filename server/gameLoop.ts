@@ -9,6 +9,7 @@ import { npcManager } from './managers/npcManager';
 import { npcLifeManager } from './managers/npcLifeManager';
 import { economyManager } from './managers/economyManager';
 import { npcSocialManager } from './managers/npcSocialManager';
+import { appearanceManager } from './managers/appearanceManager';
 import {
   TICK_RATE_MS,
   COMBAT_TICK_MS,
@@ -96,6 +97,7 @@ class GameLoop {
     // Hunger/thirst tick (every 5 minutes)
     if (now - this.lastHungerTick >= HUNGER_TICK_MS) {
       this.processHungerThirst();
+      this.processCleanliness();
       this.lastHungerTick = now;
     }
 
@@ -361,6 +363,20 @@ class GameLoop {
       console.log('[GameLoop] NPCs wrote in their journals');
     } catch (error) {
       console.error('[GameLoop] Error processing NPC journals:', error);
+    }
+  }
+
+  // Process cleanliness decay based on room dirt levels
+  private processCleanliness(): void {
+    try {
+      const connectedPlayerIds = connectionManager.getConnectedPlayerIds();
+      appearanceManager.tick(connectedPlayerIds, (playerId) => {
+        const db = getDatabase();
+        const player = playerQueries.findById(db).get(playerId) as { current_room: string } | undefined;
+        return player?.current_room || null;
+      });
+    } catch (error) {
+      console.error('[GameLoop] Error processing cleanliness:', error);
     }
   }
 

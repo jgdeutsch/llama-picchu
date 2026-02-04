@@ -217,10 +217,10 @@ GIVING FREE ITEMS - You CAN give things away:
 - When giving something, say "Here's some water" or "Take this" - be natural about it
 - Don't give away expensive items, but basic necessities are fine for those in need
 
-PRACTICAL EXAMPLES:
-- Player says "I need clothes" → "Your shirt's in tatters. I have a Sturdy Linen Shirt for 25 gold. Your pants could use replacing too - Wool Travel Pants are 30. Get both and you'll look respectable."
-- Player says "what do you suggest?" → LOOK at them. "You're barefoot, unarmed, and those rags barely count as clothes. Start with boots - 35 gold. They'll last."
-- Player is broke → "You don't have the coin for my wares yet. Try working the fields or helping the smith. Come back when you have 25 gold or so."
+PRACTICAL EXAMPLES (note how SHORT these are):
+- Player says "I need clothes" → "Linen Shirt, 25 gold. Pants, 30. You need both."
+- Player says "what do you suggest?" → "Boots first. 35 gold. Everything else can wait."
+- Player is broke → "No coin, no goods. Try the fields for work."
 
 You can SEE what the player is wearing (listed above). Reference it directly!
 
@@ -228,9 +228,10 @@ STYLE GUIDELINES:
 - Respond like a character from "Rosencrantz and Guildenstern Are Dead" - philosophical tangents, absurdist humor, wordplay are welcome
 - But balance wit with BEING HELPFUL. Don't be so cryptic you're useless.
 - You can make subtle references to Phish songs if they fit naturally
-- Keep responses 1-3 sentences unless you have something important to say
+- KEEP RESPONSES SHORT: 1-2 sentences MAX (under 25 words ideally)
 - If this player helped you before, show genuine warmth
 - If this player wronged you, be appropriately guarded or cold
+- NEVER ramble. Say what needs saying, then stop.
 
 KNOWN CHARACTERS IN GAMEHENGE (ONLY reference these people):
 - Wilson (tyrant king, at castle)
@@ -388,7 +389,7 @@ ${conversationText || '(This is the start of the conversation)'}
 
 ${context.playerName} says: "${playerMessage}"
 
-Respond as ${context.npcName}. Remember to stay in character and keep your response appropriate for your relationship with this player.`;
+Respond as ${context.npcName}. Stay in character. KEEP IT SHORT - 1-2 sentences, under 25 words total.`;
 
   try {
     console.log(`[Gemini] Generating response for ${context.npcName}...`);
@@ -896,6 +897,17 @@ export async function generateNpcSpeechReaction(
   if (relationship) {
     if (relationship.capital > 30) relationshipContext += ' (you like them)';
     else if (relationship.capital < -30) relationshipContext += ' (you dislike them)';
+    if (relationship.times_helped > 0) relationshipContext += ` (helped you ${relationship.times_helped}x)`;
+    if (relationship.times_wronged > 0) relationshipContext += ` (wronged you ${relationship.times_wronged}x)`;
+  }
+
+  // Get NPC's memories of this player - CRUCIAL for context
+  const memories = getNpcMemoriesOfPlayer(npcId, playerId);
+  let memoryContext = '';
+  if (memories.recent.length > 0 || memories.longTerm.length > 0) {
+    const allMemories = [...memories.longTerm, ...memories.recent].slice(0, 8);
+    memoryContext = '\nYOUR MEMORIES OF THIS PLAYER (use these!):\n' +
+      allMemories.map(m => `- ${m.content}`).join('\n');
   }
 
   // Get conversation history for context
@@ -903,34 +915,32 @@ export async function generateNpcSpeechReaction(
   let conversationContext = '';
   if (conversationHistory.length > 0) {
     const recentExchanges = conversationHistory.slice(-6);
-    conversationContext = '\nRECENT CONVERSATION WITH THIS PLAYER:\n' +
+    conversationContext = '\nRECENT CONVERSATION:\n' +
       recentExchanges.map(m => `${m.role === 'player' ? playerName : npcName}: ${m.content}`).join('\n') +
-      '\n\nIMPORTANT: Continue the conversation naturally! If they say "sure" or "yes", respond to what YOU just asked them!';
+      '\n\nIMPORTANT: Continue the conversation naturally!';
   }
 
-  const prompt = `You are ${npcName} in a room. Personality: ${npcPersonality}
-${npcCurrentTask ? `You're currently ${npcCurrentTask}.` : 'You\'re idle.'}
-Your relationship with ${playerName}: ${relationshipContext}
+  const prompt = `You are ${npcName}. Personality: ${npcPersonality}
+${npcCurrentTask ? `Currently: ${npcCurrentTask}.` : ''}
+Relationship with ${playerName}: ${relationshipContext}
+${memoryContext}
 ${conversationContext}
 
-${playerName} just said: "${playerSpeech}"
+${playerName} says: "${playerSpeech}"
 
-CRITICAL: If there's conversation history above, CONTINUE that conversation! If you asked a question and they answered, RESPOND to their answer!
+CRITICAL RULES:
+1. If player references something from your MEMORIES, acknowledge it!
+2. If conversation history exists, continue naturally
+3. Keep responses SHORT - 1 sentence, max 15 words
+4. Stay in character
 
-KNOWN PEOPLE: Wilson, Icculus, Tela, Colonel Forbin, Errand Wolfe, Fee, Mr. Palmer, Farmer Rutherford, Martha Rutherford, Jimmy, Blacksmith Gordo, Elena, Baker Possum, Pip, Innkeeper Antelope, Tailor Lydia, Healer Esther, Elder Moondog, Town Crier Barnaby, Vegetable Vendor Marge, Old Gossip Gertrude, Fisherman Harpua, Captain Sloth, Guard Viktor, Hendricks.
-NEVER invent other people. If asked about someone not listed, say "I don't know anyone by that name."
+KNOWN PEOPLE: Wilson, Icculus, Tela, Forbin, Wolfe, Fee, Palmer, Rutherford, Martha, Jimmy, Gordo, Elena, Possum, Pip, Antelope, Lydia, Esther, Moondog, Barnaby, Marge, Gertrude, Harpua, Sloth, Viktor, Hendricks.
 
-Format your response EXACTLY as:
-EMOTE_1ST: NONE
-EMOTE_2ND: NONE
-EMOTE_3RD: NONE
-SPEECH: [your response]
-
-If you need an emote, provide all three perspectives:
-EMOTE_1ST: [your perspective, lowercase]
-EMOTE_2ND: [what ${playerName} sees]
-EMOTE_3RD: [what others see]
-SPEECH: [words, or NONE if emote-only]`;
+Format:
+EMOTE_1ST: [action or NONE]
+EMOTE_2ND: [what ${playerName} sees or NONE]
+EMOTE_3RD: [what others see or NONE]
+SPEECH: [1 SHORT sentence, max 15 words]`;
 
   try {
     const result = await model.generateContent(prompt);
@@ -1307,6 +1317,181 @@ Your helpful response:`;
   } catch (error) {
     console.error('[Brain] Gemini error:', error);
     return 'Your brain is foggy at the moment. Try "help" for a list of commands.';
+  }
+}
+
+// === NPC-TO-NPC INTERACTIONS ===
+
+// Context for NPC-to-NPC conversation
+export interface NpcToNpcContext {
+  speakerId: number;
+  speakerName: string;
+  speakerPersonality: string;
+  speakerCurrentTask: string | null;
+  speakerMood: string;
+  listenerId: number;
+  listenerName: string;
+  listenerPersonality: string;
+  listenerCurrentTask: string | null;
+  relationshipType: string;
+  affinity: number;  // -100 to 100
+  recentMemories: string[];  // Recent things that happened between them
+  roomName: string;
+  timeOfDay: string;
+}
+
+// Result of NPC-to-NPC interaction
+export interface NpcToNpcInteraction {
+  speakerEmote?: string;      // What the speaker does (visible to room)
+  speakerSpeech?: string;     // What the speaker says
+  listenerEmote?: string;     // How the listener reacts (emote)
+  listenerSpeech?: string;    // How the listener responds
+  memoryForSpeaker?: string;  // What the speaker will remember
+  memoryForListener?: string; // What the listener will remember
+  affinityChange?: number;    // How their relationship changes (-5 to +5)
+}
+
+// Generate an NPC-to-NPC interaction (conversation or emote exchange)
+export async function generateNpcToNpcInteraction(
+  context: NpcToNpcContext
+): Promise<NpcToNpcInteraction | null> {
+  // Build relationship description
+  let relationshipDesc = context.relationshipType;
+  if (context.affinity > 70) relationshipDesc += ' (very close)';
+  else if (context.affinity > 30) relationshipDesc += ' (friendly)';
+  else if (context.affinity > -30) relationshipDesc += ' (neutral)';
+  else if (context.affinity > -70) relationshipDesc += ' (tense)';
+  else relationshipDesc += ' (hostile)';
+
+  const memoriesText = context.recentMemories.length > 0
+    ? context.recentMemories.slice(0, 3).map(m => `- ${m}`).join('\n')
+    : 'No recent shared memories.';
+
+  const prompt = `Two NPCs in Gamehenge are in the same room and might interact.
+
+SPEAKER: ${context.speakerName}
+- Personality: ${context.speakerPersonality}
+- Currently doing: ${context.speakerCurrentTask || 'idle'}
+- Mood: ${context.speakerMood}
+
+LISTENER: ${context.listenerName}
+- Personality: ${context.listenerPersonality}
+- Currently doing: ${context.listenerCurrentTask || 'idle'}
+
+RELATIONSHIP: ${relationshipDesc} (affinity: ${context.affinity})
+RECENT SHARED EXPERIENCES:
+${memoriesText}
+
+SETTING: ${context.roomName}, ${context.timeOfDay}
+
+KNOWN PEOPLE they might mention: Wilson (tyrant), Icculus (prophet), Tela (resistance), Fee (weasel), Farmer Rutherford, Martha, Gordo, Baker Possum, Innkeeper Antelope, Tailor Lydia, Healer Esther, Elder Moondog.
+NEVER invent other people.
+
+Generate a SHORT, natural interaction. Could be:
+- A greeting or comment
+- Discussing work or weather
+- Sharing gossip about someone they both know
+- A philosophical observation (in the Rosencrantz & Guildenstern style)
+- A complaint or concern about Wilson's rule
+- Just an emote exchange (nod, wave, etc.)
+
+Format your response EXACTLY as:
+SPEAKER_EMOTE: [action or NONE]
+SPEAKER_SPEECH: [what they say or NONE]
+LISTENER_EMOTE: [reaction or NONE]
+LISTENER_SPEECH: [response or NONE]
+SPEAKER_MEMORY: [1 sentence summary of what ${context.speakerName} will remember, or NONE]
+LISTENER_MEMORY: [1 sentence summary of what ${context.listenerName} will remember, or NONE]
+AFFINITY_CHANGE: [number from -5 to +5, or 0 if neutral]
+
+CRITICAL: Keep it VERY SHORT!
+- Each speech: 1 sentence, under 12 words
+- These are background ambient interactions
+- If they would ignore each other, all NONE and AFFINITY_CHANGE: 0.`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+
+    // Parse the response
+    const speakerEmoteMatch = text.match(/SPEAKER_EMOTE:\s*(.+?)(?:\n|$)/i);
+    const speakerSpeechMatch = text.match(/SPEAKER_SPEECH:\s*(.+?)(?:\n|$)/i);
+    const listenerEmoteMatch = text.match(/LISTENER_EMOTE:\s*(.+?)(?:\n|$)/i);
+    const listenerSpeechMatch = text.match(/LISTENER_SPEECH:\s*(.+?)(?:\n|$)/i);
+    const speakerMemoryMatch = text.match(/SPEAKER_MEMORY:\s*(.+?)(?:\n|$)/i);
+    const listenerMemoryMatch = text.match(/LISTENER_MEMORY:\s*(.+?)(?:\n|$)/i);
+    const affinityMatch = text.match(/AFFINITY_CHANGE:\s*([-+]?\d+)/i);
+
+    const clean = (s: string | undefined) => {
+      if (!s) return undefined;
+      const cleaned = s.trim().replace(/^["']|["']$/g, '');
+      return cleaned.toUpperCase() === 'NONE' ? undefined : cleaned;
+    };
+
+    const interaction: NpcToNpcInteraction = {};
+
+    if (clean(speakerEmoteMatch?.[1])) interaction.speakerEmote = clean(speakerEmoteMatch?.[1]);
+    if (clean(speakerSpeechMatch?.[1])) interaction.speakerSpeech = clean(speakerSpeechMatch?.[1]);
+    if (clean(listenerEmoteMatch?.[1])) interaction.listenerEmote = clean(listenerEmoteMatch?.[1]);
+    if (clean(listenerSpeechMatch?.[1])) interaction.listenerSpeech = clean(listenerSpeechMatch?.[1]);
+    if (clean(speakerMemoryMatch?.[1])) interaction.memoryForSpeaker = clean(speakerMemoryMatch?.[1]);
+    if (clean(listenerMemoryMatch?.[1])) interaction.memoryForListener = clean(listenerMemoryMatch?.[1]);
+
+    const affinityChange = parseInt(affinityMatch?.[1] || '0', 10);
+    if (affinityChange !== 0) {
+      interaction.affinityChange = Math.max(-5, Math.min(5, affinityChange));
+    }
+
+    // If nothing happened, return null
+    if (!interaction.speakerEmote && !interaction.speakerSpeech &&
+        !interaction.listenerEmote && !interaction.listenerSpeech) {
+      return null;
+    }
+
+    return interaction;
+  } catch (error) {
+    console.error('[NpcToNpc] Gemini error:', error);
+    return null;
+  }
+}
+
+// Add a memory between two NPCs
+export function addNpcToNpcMemory(
+  npcId: number,
+  aboutNpcId: number,
+  content: string,
+  importance: number = 5,
+  emotionalValence: number = 0
+): void {
+  const db = getDatabase();
+
+  try {
+    db.prepare(`
+      INSERT INTO npc_npc_memories (npc_id, about_npc_id, content, importance, emotional_valence, created_at)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).run(npcId, aboutNpcId, content, Math.min(10, Math.max(1, importance)), emotionalValence);
+
+    console.log(`[NpcMemory] NPC ${npcId} remembers about NPC ${aboutNpcId}: "${content}"`);
+  } catch (error) {
+    // Table might not exist yet - that's ok
+  }
+}
+
+// Get memories an NPC has about another NPC
+export function getNpcMemoriesOfNpc(npcId: number, aboutNpcId: number): string[] {
+  const db = getDatabase();
+
+  try {
+    const memories = db.prepare(`
+      SELECT content FROM npc_npc_memories
+      WHERE npc_id = ? AND about_npc_id = ?
+      ORDER BY created_at DESC
+      LIMIT 5
+    `).all(npcId, aboutNpcId) as { content: string }[];
+
+    return memories.map(m => m.content);
+  } catch (error) {
+    return [];
   }
 }
 

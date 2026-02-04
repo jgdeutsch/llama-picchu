@@ -4,7 +4,17 @@
 //  They have lives, opinions, loves, and grudges of their own." - Design Notes
 
 import { getDatabase } from '../database';
-import { getNpcById, npcTemplates } from '../data/npcs';
+import { getNpcById, npcTemplates, getNpcPersonalityPrompt } from '../data/npcs';
+import { connectionManager } from './connectionManager';
+import { worldManager } from './worldManager';
+import {
+  generateNpcToNpcInteraction,
+  addNpcToNpcMemory,
+  getNpcMemoriesOfNpc,
+  getTimeOfDay,
+  type NpcToNpcContext,
+  type NpcToNpcInteraction,
+} from '../services/geminiService';
 
 interface NpcRelationship {
   npcId: number;
@@ -330,14 +340,138 @@ class NpcSocialManager {
     for (const room of npcsByRoom) {
       const npcIds = room.npcs.split(',').map(Number);
 
-      // 20% chance of gossip in each room with multiple awake NPCs
-      if (Math.random() < 0.2 && npcIds.length >= 2) {
+      // 30% chance of interaction in each room with multiple awake NPCs
+      if (Math.random() < 0.3 && npcIds.length >= 2) {
         const speakerId = npcIds[Math.floor(Math.random() * npcIds.length)];
-        const listenerId = npcIds.filter(id => id !== speakerId)[Math.floor(Math.random() * (npcIds.length - 1))];
+        const otherNpcs = npcIds.filter(id => id !== speakerId);
+        const listenerId = otherNpcs[Math.floor(Math.random() * otherNpcs.length)];
 
         if (speakerId && listenerId) {
-          this.generateRandomGossip(speakerId, listenerId);
+          // Use the new NPC-to-NPC interaction system
+          this.processNpcToNpcInteraction(speakerId, listenerId, room.current_room)
+            .catch(err => console.error('[NpcSocial] Interaction error:', err));
         }
+      }
+    }
+  }
+
+  // Process an interaction between two NPCs
+  async processNpcToNpcInteraction(speakerId: number, listenerId: number, roomId: string): Promise<void> {
+    const db = getDatabase();
+
+    // Get NPC data
+    const speakerTemplate = getNpcById(speakerId);
+    const listenerTemplate = getNpcById(listenerId);
+    if (!speakerTemplate || !listenerTemplate) return;
+
+    // Get NPC states
+    const speakerState = db.prepare(`
+      SELECT current_task, mood FROM npc_state WHERE npc_id = ?
+    `).get(speakerId) as { current_task: string | null; mood: string } | undefined;
+
+    const listenerState = db.prepare(`
+      SELECT current_task FROM npc_state WHERE npc_id = ?
+    `).get(listenerId) as { current_task: string | null } | undefined;
+
+    // Get relationship
+    const relationship = this.getRelationship(speakerId, listenerId);
+
+    // Get recent memories between them
+    const speakerMemories = getNpcMemoriesOfNpc(speakerId, listenerId);
+    const listenerMemories = getNpcMemoriesOfNpc(listenerId, speakerId);
+    const sharedMemories = [...speakerMemories, ...listenerMemories].slice(0, 5);
+
+    // Get room name
+    const room = worldManager.getRoom(roomId);
+    const roomName = room?.name || roomId;
+
+    // Build context
+    const context: NpcToNpcContext = {
+      speakerId,
+      speakerName: speakerTemplate.name,
+      speakerPersonality: getNpcPersonalityPrompt(speakerId),
+      speakerCurrentTask: speakerState?.current_task || null,
+      speakerMood: speakerState?.mood || 'neutral',
+      listenerId,
+      listenerName: listenerTemplate.name,
+      listenerPersonality: getNpcPersonalityPrompt(listenerId),
+      listenerCurrentTask: listenerState?.current_task || null,
+      relationshipType: relationship?.relationshipType || 'acquaintance',
+      affinity: relationship?.affinity || 0,
+      recentMemories: sharedMemories,
+      roomName,
+      timeOfDay: getTimeOfDay(),
+    };
+
+    // Generate the interaction
+    const interaction = await generateNpcToNpcInteraction(context);
+    if (!interaction) return;
+
+    // Display to players in the room
+    this.broadcastNpcInteraction(roomId, speakerTemplate.name, listenerTemplate.name, interaction);
+
+    // Record memories
+    if (interaction.memoryForSpeaker) {
+      addNpcToNpcMemory(speakerId, listenerId, interaction.memoryForSpeaker, 5, interaction.affinityChange || 0);
+    }
+    if (interaction.memoryForListener) {
+      addNpcToNpcMemory(listenerId, speakerId, interaction.memoryForListener, 5, interaction.affinityChange || 0);
+    }
+
+    // Update relationship affinity
+    if (interaction.affinityChange && interaction.affinityChange !== 0) {
+      this.updateRelationship(speakerId, listenerId, interaction.affinityChange, 'Recent conversation');
+      this.updateRelationship(listenerId, speakerId, interaction.affinityChange, 'Recent conversation');
+    }
+
+    console.log(`[NpcSocial] ${speakerTemplate.name} interacted with ${listenerTemplate.name} in ${roomName}`);
+  }
+
+  // Broadcast NPC interaction to all players in the room
+  private broadcastNpcInteraction(
+    roomId: string,
+    speakerName: string,
+    listenerName: string,
+    interaction: NpcToNpcInteraction
+  ): void {
+    const playersInRoom = worldManager.getPlayersInRoom(roomId);
+
+    for (const playerId of playersInRoom) {
+      const messages: string[] = [];
+
+      // Speaker's emote
+      if (interaction.speakerEmote) {
+        const emote = interaction.speakerEmote.startsWith(speakerName)
+          ? interaction.speakerEmote
+          : `${speakerName} ${interaction.speakerEmote}`;
+        messages.push(emote);
+      }
+
+      // Speaker's speech
+      if (interaction.speakerSpeech) {
+        messages.push(`${speakerName} says to ${listenerName}, "${interaction.speakerSpeech}"`);
+      }
+
+      // Listener's emote (if any)
+      if (interaction.listenerEmote) {
+        const emote = interaction.listenerEmote.startsWith(listenerName)
+          ? interaction.listenerEmote
+          : `${listenerName} ${interaction.listenerEmote}`;
+        messages.push(emote);
+      }
+
+      // Listener's speech (if any)
+      if (interaction.listenerSpeech) {
+        messages.push(`${listenerName} replies, "${interaction.listenerSpeech}"`);
+      }
+
+      // Send as a single message block
+      if (messages.length > 0) {
+        connectionManager.sendToPlayer(playerId, {
+          type: 'output',
+          text: '\n' + messages.join('\n'),
+          messageType: 'npc_ambient',
+        });
       }
     }
   }
