@@ -6,7 +6,96 @@ import { npcManager } from '../managers/npcManager';
 import { getDatabase, playerQueries, roomNpcQueries } from '../database';
 import { generateNpcSpeechReaction, addNpcMemory, addToConversationHistory } from '../services/geminiService';
 import { npcTemplates, getNpcPersonalityPrompt } from '../data/npcs';
+import { itemTemplates } from '../data/items';
 import type { CommandContext } from './index';
+
+// === NPC ITEM GIVING SYSTEM ===
+// NPCs can give items when they promise them in dialogue
+// Maps NPC template IDs to items they can freely give (value 0 or very cheap items)
+
+interface NpcGivableItem {
+  keywords: string[];     // Words in NPC speech that trigger giving this item
+  itemId: number;         // Item template ID
+  itemName: string;       // For logging
+  requiresGoodRelation?: boolean; // Only give if player has positive social capital
+}
+
+// NPCs and the free/cheap items they can give
+const npcGivableItems: Record<number, NpcGivableItem[]> = {
+  // Innkeeper Antelope (id: 9)
+  9: [
+    { keywords: ['water', 'here\'s water', 'have some water', 'free water', 'give you water'], itemId: 212, itemName: 'River Water' },
+    { keywords: ['bread', 'here\'s bread', 'have some bread'], itemId: 200, itemName: 'Fresh Bread Loaf', requiresGoodRelation: true },
+  ],
+  // Baker Possum (id: 11)
+  11: [
+    { keywords: ['bread', 'here\'s bread', 'have this', 'take this'], itemId: 200, itemName: 'Fresh Bread Loaf', requiresGoodRelation: true },
+    { keywords: ['crust', 'old bread', 'stale'], itemId: 56, itemName: 'Stale Bread Crust' },
+  ],
+  // Farmer Rutherford (id: 7)
+  7: [
+    { keywords: ['apple', 'here\'s an apple', 'have an apple', 'take this apple'], itemId: 213, itemName: 'Gamehenge Apple' },
+    { keywords: ['water', 'have some water'], itemId: 212, itemName: 'River Water' },
+  ],
+  // Healer Esther (id: 14)
+  14: [
+    { keywords: ['water', 'drink this', 'have some water'], itemId: 212, itemName: 'River Water' },
+  ],
+  // Vegetable Vendor Marge (id: 15)
+  15: [
+    { keywords: ['apple', 'have this', 'try one'], itemId: 213, itemName: 'Gamehenge Apple', requiresGoodRelation: true },
+  ],
+};
+
+// Check if an NPC's response indicates they're giving an item
+function checkNpcGivingItem(
+  npcTemplateId: number,
+  npcResponse: string,
+  playerId: number
+): { itemId: number; itemName: string } | null {
+  const givableItems = npcGivableItems[npcTemplateId];
+  if (!givableItems) return null;
+
+  const responseLower = npcResponse.toLowerCase();
+
+  // Check for giving patterns in the response
+  const givingPatterns = [
+    /here('s| is)/i,
+    /take (this|it)/i,
+    /have (some|this|a)/i,
+    /give you/i,
+    /hands you/i,
+    /passes you/i,
+    /offers you/i,
+  ];
+
+  const hasGivingLanguage = givingPatterns.some(pattern => pattern.test(npcResponse));
+  if (!hasGivingLanguage) return null;
+
+  // Check which item matches
+  for (const item of givableItems) {
+    // Check if any keyword appears in the response
+    const hasKeyword = item.keywords.some(keyword => responseLower.includes(keyword.toLowerCase()));
+    if (hasKeyword) {
+      // Check if good relation required
+      if (item.requiresGoodRelation) {
+        const db = getDatabase();
+        const relationship = db.prepare(`
+          SELECT capital FROM social_capital
+          WHERE player_id = ? AND npc_id = ?
+        `).get(playerId, npcTemplateId) as { capital: number } | undefined;
+
+        if (!relationship || relationship.capital < 10) {
+          continue; // Skip this item, need better relationship
+        }
+      }
+
+      return { itemId: item.itemId, itemName: item.itemName };
+    }
+  }
+
+  return null;
+}
 
 // Track the last NPC each player interacted with (for "reply" command)
 const lastNpcInteraction: Map<number, { npcId: number; npcName: string; roomId: string }> = new Map();
@@ -324,6 +413,29 @@ async function generateAndSendNpcReaction(
         // Add to conversation history for context in future exchanges
         addToConversationHistory(ctx.playerId, npc.npcTemplateId, 'player', message);
         addToConversationHistory(ctx.playerId, npc.npcTemplateId, 'npc', reaction.response);
+
+        // Check if NPC is giving an item in their response
+        const givenItem = checkNpcGivingItem(npc.npcTemplateId, reaction.response, ctx.playerId);
+        if (givenItem) {
+          // Actually give the item to the player
+          const result = playerManager.addItemToInventory(ctx.playerId, givenItem.itemId, 1);
+          if (result.success) {
+            const itemTemplate = itemTemplates.find(t => t.id === givenItem.itemId);
+            const itemDisplayName = itemTemplate?.name || givenItem.itemName;
+            sendOutput(ctx.playerId, `\n[${template.name} gives you ${itemDisplayName}.]`);
+            console.log(`[NPC Give] ${template.name} gave ${itemDisplayName} to ${ctx.playerName}`);
+
+            // Record this in memory as a positive interaction
+            addNpcMemory(
+              npc.npcTemplateId,
+              ctx.playerId,
+              'interaction',
+              `Gave ${ctx.playerName} ${itemDisplayName}`,
+              4, // Moderate importance
+              1  // Positive valence
+            );
+          }
+        }
       }
     } else {
       // Fallback: NPC always does something minimal
@@ -561,6 +673,29 @@ async function triggerDirectNpcResponse(
 
       // Record room speaker for contextual socials
       recordRoomSpeaker(ctx.roomId, 'npc', npc.npcTemplateId, template.name, reaction.response);
+
+      // Check if NPC is giving an item in their response
+      const givenItem = checkNpcGivingItem(npc.npcTemplateId, reaction.response, ctx.playerId);
+      if (givenItem) {
+        // Actually give the item to the player
+        const result = playerManager.addItemToInventory(ctx.playerId, givenItem.itemId, 1);
+        if (result.success) {
+          const itemTemplate = itemTemplates.find(t => t.id === givenItem.itemId);
+          const itemDisplayName = itemTemplate?.name || givenItem.itemName;
+          sendOutput(ctx.playerId, `\n[${template.name} gives you ${itemDisplayName}.]`);
+          console.log(`[NPC Give] ${template.name} gave ${itemDisplayName} to ${ctx.playerName}`);
+
+          // Record this in memory as a positive interaction
+          addNpcMemory(
+            npc.npcTemplateId,
+            ctx.playerId,
+            'interaction',
+            `Gave ${ctx.playerName} ${itemDisplayName}`,
+            4, // Moderate importance
+            1  // Positive valence
+          );
+        }
+      }
     } else {
       // Minimal acknowledgment
       sendOutput(ctx.playerId, `\n${template.name} nods at you but doesn't respond.`);
