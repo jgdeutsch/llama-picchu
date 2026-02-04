@@ -377,6 +377,9 @@ export function processCommand(playerId: number, rawInput: string): void {
     case 'talk':
       processTalk(context);
       break;
+    case 'status':
+      processStatus(context);
+      break;
 
     // NPC Assistance (Living World)
     case 'assist':
@@ -1502,6 +1505,14 @@ function processTalk(ctx: CommandContext): void {
     return;
   }
   processInteractionCommand(ctx, 'talk');
+}
+
+function processStatus(ctx: CommandContext): void {
+  if (ctx.args.length === 0) {
+    sendOutput(ctx.playerId, 'Check status with whom? Usage: status <name>');
+    return;
+  }
+  processInteractionCommand(ctx, 'status');
 }
 
 function processSave(ctx: CommandContext): void {

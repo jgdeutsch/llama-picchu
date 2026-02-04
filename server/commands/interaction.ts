@@ -53,6 +53,9 @@ export function processInteractionCommand(ctx: CommandContext, action: string): 
         sendOutput(ctx.playerId, 'Something went wrong with the conversation.');
       });
       break;
+    case 'status':
+      processStatus(ctx);
+      break;
   }
 }
 
@@ -1087,4 +1090,156 @@ function getTrustHint(trustLevel: string): string {
 
   const options = hints[trustLevel] || hints.stranger;
   return options[Math.floor(Math.random() * options.length)];
+}
+
+// Process STATUS command - show relationship status with NPC or player
+function processStatus(ctx: CommandContext): void {
+  const targetName = ctx.args.join(' ').toLowerCase().trim();
+
+  if (!targetName) {
+    sendOutput(ctx.playerId, 'Status with whom? Usage: status <name>');
+    return;
+  }
+
+  const db = getDatabase();
+
+  // Check for NPC in current room first
+  const npcsInRoom = npcManager.getNpcsInRoom(ctx.roomId);
+  const matchingNpc = npcsInRoom.find(npc => {
+    const template = npcTemplates.find(t => t.id === npc.templateId);
+    return template?.name.toLowerCase().includes(targetName) ||
+           template?.keywords?.some(k => k.toLowerCase().includes(targetName));
+  });
+
+  if (matchingNpc) {
+    const template = npcTemplates.find(t => t.id === matchingNpc.templateId);
+    if (!template) {
+      sendOutput(ctx.playerId, "You can't get a read on them.");
+      return;
+    }
+
+    // Get NPC memory/disposition
+    const memory = npcManager.getNpcMemory(matchingNpc.templateId, ctx.playerId);
+    const disposition = memory?.disposition ?? 50;
+    const trustLevel = getDispositionTrustLevel(disposition);
+    const trustHint = getTrustHint(trustLevel);
+
+    // Get interaction stats
+    const totalInteractions = memory?.interaction_count ?? 0;
+    const positiveInteractions = memory?.positive_interactions ?? 0;
+    const negativeInteractions = memory?.negative_interactions ?? 0;
+
+    // Get memories of this player
+    const memories = memory?.memories ? JSON.parse(memory.memories as string) : [];
+
+    // Build the status output
+    const lines: string[] = [];
+    lines.push(`\n=== Your Status with ${template.name} ===\n`);
+    lines.push(`Relationship: ${capitalizeFirst(trustLevel)} (${disposition}/100)`);
+    lines.push(`${template.name} ${trustHint}.`);
+    lines.push('');
+    lines.push(`Interactions: ${totalInteractions} total (${positiveInteractions} positive, ${negativeInteractions} negative)`);
+
+    if (memories.length > 0) {
+      lines.push('');
+      lines.push(`${template.name} remembers:`);
+      // Show last 3 memories
+      const recentMemories = memories.slice(-3);
+      for (const mem of recentMemories) {
+        lines.push(`  • ${mem}`);
+      }
+    }
+
+    // Show trust level effects
+    lines.push('');
+    lines.push(getTrustLevelEffects(trustLevel));
+
+    sendOutput(ctx.playerId, lines.join('\n'));
+    return;
+  }
+
+  // Check for player in room
+  const playersInRoom = worldManager.getPlayersInRoom(ctx.roomId);
+  for (const otherId of playersInRoom) {
+    if (otherId === ctx.playerId) continue;
+
+    const otherPlayer = playerQueries.findById(db).get(otherId) as { id: number; name: string } | undefined;
+    if (otherPlayer && otherPlayer.name.toLowerCase().includes(targetName)) {
+      // For now, player-to-player status is simple
+      sendOutput(ctx.playerId, `\n=== Your Status with ${otherPlayer.name} ===\n\nPlayer relationships are still being implemented.\nYou're both adventurers in this world.`);
+      return;
+    }
+  }
+
+  // Check for NPC not in room but known to player
+  const allMemories = db.prepare(`
+    SELECT npc_template_id, disposition, interaction_count, positive_interactions, negative_interactions, memories
+    FROM npc_memory WHERE player_id = ?
+  `).all(ctx.playerId) as Array<{
+    npc_template_id: number;
+    disposition: number;
+    interaction_count: number;
+    positive_interactions: number;
+    negative_interactions: number;
+    memories: string;
+  }>;
+
+  for (const mem of allMemories) {
+    const template = npcTemplates.find(t => t.id === mem.npc_template_id);
+    if (template && template.name.toLowerCase().includes(targetName)) {
+      const trustLevel = getDispositionTrustLevel(mem.disposition);
+      const memories = mem.memories ? JSON.parse(mem.memories) : [];
+
+      const lines: string[] = [];
+      lines.push(`\n=== Your Status with ${template.name} ===\n`);
+      lines.push(`(Not present - recalling from memory)`);
+      lines.push('');
+      lines.push(`Relationship: ${capitalizeFirst(trustLevel)} (${mem.disposition}/100)`);
+      lines.push(`Interactions: ${mem.interaction_count} total (${mem.positive_interactions} positive, ${mem.negative_interactions} negative)`);
+
+      if (memories.length > 0) {
+        lines.push('');
+        lines.push(`${template.name} remembers:`);
+        const recentMemories = memories.slice(-3);
+        for (const m of recentMemories) {
+          lines.push(`  • ${m}`);
+        }
+      }
+
+      sendOutput(ctx.playerId, lines.join('\n'));
+      return;
+    }
+  }
+
+  sendOutput(ctx.playerId, `You don't see ${targetName} here, and you don't recall meeting anyone by that name.`);
+}
+
+// Convert disposition (0-100) to trust level
+function getDispositionTrustLevel(disposition: number): string {
+  if (disposition < 10) return 'hostile';
+  if (disposition < 25) return 'unfriendly';
+  if (disposition < 40) return 'stranger';
+  if (disposition < 55) return 'acquaintance';
+  if (disposition < 70) return 'friend';
+  if (disposition < 85) return 'trusted';
+  return 'family';
+}
+
+// Get effects description for trust level
+function getTrustLevelEffects(trustLevel: string): string {
+  const effects: Record<string, string> = {
+    hostile: 'Effects: Will refuse to talk or trade. May attack on sight.',
+    unfriendly: 'Effects: Short answers, higher prices, unlikely to help.',
+    stranger: 'Effects: Neutral interactions. Standard prices.',
+    acquaintance: 'Effects: Friendlier dialogue, may share basic information.',
+    friend: 'Effects: Discounts on trades, shares secrets, willing to help.',
+    trusted: 'Effects: Significant favors, introduces family, deep discounts.',
+    family: 'Effects: Would risk their life for you. Shares everything.',
+  };
+  return effects[trustLevel] || effects.stranger;
+}
+
+// Helper to capitalize first letter
+function capitalizeFirst(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }

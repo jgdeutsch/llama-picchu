@@ -340,8 +340,9 @@ class NpcSocialManager {
     for (const room of npcsByRoom) {
       const npcIds = room.npcs.split(',').map(Number);
 
-      // 30% chance of interaction in each room with multiple awake NPCs
-      if (Math.random() < 0.3 && npcIds.length >= 2) {
+      // 60% chance of interaction in each room with multiple awake NPCs
+      // NPCs have their own lives - they talk, argue, gossip constantly
+      if (Math.random() < 0.6 && npcIds.length >= 2) {
         const speakerId = npcIds[Math.floor(Math.random() * npcIds.length)];
         const otherNpcs = npcIds.filter(id => id !== speakerId);
         const listenerId = otherNpcs[Math.floor(Math.random() * otherNpcs.length)];

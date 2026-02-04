@@ -24,7 +24,7 @@ const NPC_LIFE_TICK_MS = 10000; // Every 10 seconds
 // Economy tick - how often work sessions progress
 const ECONOMY_TICK_MS = 5000; // Every 5 seconds
 // NPC Social tick - gossip, relationships, journals
-const NPC_SOCIAL_TICK_MS = 60000; // Every 60 seconds
+const NPC_SOCIAL_TICK_MS = 20000; // Every 20 seconds (more frequent NPC-to-NPC interactions)
 // Journal writing tick - once per game day (24 real minutes)
 const JOURNAL_TICK_MS = 1440000; // Every 24 minutes = 1 game day
 
