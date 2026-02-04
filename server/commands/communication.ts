@@ -109,7 +109,20 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
       trustLevel
     );
 
-    if (reaction) {
+    // Record this interaction in NPC memory regardless of reaction
+    addNpcMemory(
+      npc.npcTemplateId,
+      ctx.playerId,
+      'interaction',
+      `${ctx.playerName} said: "${message.substring(0, 80)}"`,
+      3, // Medium importance
+      0  // Neutral valence by default
+    );
+
+    // Check if we got a meaningful reaction
+    const hasReaction = reaction && (reaction.emote || reaction.response);
+
+    if (hasReaction) {
       // Send emote if present
       if (reaction.emote) {
         sendOutput(ctx.playerId, `\n${template.name} ${reaction.emote}`);
@@ -123,16 +136,6 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
         }
         sendOutput(ctx.playerId, `${template.name} says, "${reaction.response}"`);
       }
-
-      // Record this interaction in NPC memory
-      addNpcMemory(
-        npc.npcTemplateId,
-        ctx.playerId,
-        'interaction',
-        `${ctx.playerName} said: "${message.substring(0, 80)}"`,
-        3, // Medium importance
-        0  // Neutral valence by default
-      );
     } else {
       // Fallback: NPC always does something minimal
       const fallbackEmotes = [
