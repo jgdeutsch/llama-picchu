@@ -42,28 +42,28 @@ function processEquipment(ctx: CommandContext): void {
   const equipment = playerManager.getEquipment(ctx.playerId);
 
   const getItemName = (itemId: number | null): string => {
-    if (!itemId) return '<empty>';
+    if (!itemId) return 'Nothing';
     const template = itemTemplates.find((t) => t.id === itemId);
-    return template?.name || 'Unknown';
+    return template?.name || 'Nothing';
   };
 
   const lines = [
     '',
-    '╔════════════════════════════════════════╗',
-    '║            EQUIPMENT                   ║',
-    '╠════════════════════════════════════════╣',
-    `║  Head:      ${getItemName(equipment.head).padEnd(24)} ║`,
-    `║  Neck:      ${getItemName(equipment.neck).padEnd(24)} ║`,
-    `║  Body:      ${getItemName(equipment.body).padEnd(24)} ║`,
-    `║  Back:      ${getItemName(equipment.back).padEnd(24)} ║`,
-    `║  Legs:      ${getItemName(equipment.legs).padEnd(24)} ║`,
-    `║  Feet:      ${getItemName(equipment.feet).padEnd(24)} ║`,
-    `║  Hands:     ${getItemName(equipment.hands).padEnd(24)} ║`,
-    `║  Main Hand: ${getItemName(equipment.mainHand).padEnd(24)} ║`,
-    `║  Off Hand:  ${getItemName(equipment.offHand).padEnd(24)} ║`,
-    `║  Ring 1:    ${getItemName(equipment.ring1).padEnd(24)} ║`,
-    `║  Ring 2:    ${getItemName(equipment.ring2).padEnd(24)} ║`,
-    '╚════════════════════════════════════════╝',
+    '=== Equipment ===',
+    '',
+    `Head:       ${getItemName(equipment.head)}`,
+    `Neck:       ${getItemName(equipment.neck)}`,
+    `Body:       ${getItemName(equipment.body)}`,
+    `Back:       ${getItemName(equipment.back)}`,
+    `Hands:      ${getItemName(equipment.hands)}`,
+    `Legs:       ${getItemName(equipment.legs)}`,
+    `Feet:       ${getItemName(equipment.feet)}`,
+    `Main Hand:  ${getItemName(equipment.mainHand)}`,
+    `Off Hand:   ${getItemName(equipment.offHand)}`,
+    `Ring 1:     ${getItemName(equipment.ring1)}`,
+    `Ring 2:     ${getItemName(equipment.ring2)}`,
+    '',
+    'Use "inventory" or "i" to see carried items and appearance.',
     '',
   ];
 

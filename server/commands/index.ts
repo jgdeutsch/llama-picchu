@@ -586,22 +586,72 @@ function processDrop(ctx: CommandContext): void {
 }
 
 function processInventory(ctx: CommandContext): void {
+  const equipment = playerManager.getEquipment(ctx.playerId);
   const inventory = playerManager.getInventory(ctx.playerId);
+  const appearance = appearanceManager.getPlayerAppearance(ctx.playerId);
 
-  if (inventory.length === 0) {
-    sendOutput(ctx.playerId, '\nYou are not carrying anything.\n');
-    return;
-  }
+  // Helper to get item name or "Nothing"
+  const getSlotDisplay = (itemId: number | null): string => {
+    if (!itemId) return 'Nothing';
+    const item = itemTemplates.find(i => i.id === itemId);
+    return item ? item.name : 'Nothing';
+  };
 
-  const lines = ['\n[ Inventory ]'];
-  for (const item of inventory) {
-    if (item.quantity > 1) {
-      lines.push(`  ${item.name} (x${item.quantity})`);
-    } else {
-      lines.push(`  ${item.name}`);
+  const lines = [
+    '',
+    '=== Your Equipment ===',
+    '',
+    `Head:       ${getSlotDisplay(equipment.head)}`,
+    `Neck:       ${getSlotDisplay(equipment.neck)}`,
+    `Body:       ${getSlotDisplay(equipment.body)}`,
+    `Back:       ${getSlotDisplay(equipment.back)}`,
+    `Hands:      ${getSlotDisplay(equipment.hands)}`,
+    `Legs:       ${getSlotDisplay(equipment.legs)}`,
+    `Feet:       ${getSlotDisplay(equipment.feet)}`,
+    `Main Hand:  ${getSlotDisplay(equipment.mainHand)}`,
+    `Off Hand:   ${getSlotDisplay(equipment.offHand)}`,
+    `Ring 1:     ${getSlotDisplay(equipment.ring1)}`,
+    `Ring 2:     ${getSlotDisplay(equipment.ring2)}`,
+    '',
+  ];
+
+  // Add carried items section
+  if (inventory.length > 0) {
+    lines.push('=== Carried Items ===');
+    lines.push('');
+    for (const item of inventory) {
+      if (item.quantity > 1) {
+        lines.push(`  ${item.quantity}x ${item.name}`);
+      } else {
+        lines.push(`  ${item.name}`);
+      }
     }
+    lines.push('');
+  } else {
+    lines.push('=== Carried Items ===');
+    lines.push('');
+    lines.push('  Nothing');
+    lines.push('');
   }
+
+  // Add appearance/cleanliness status
+  lines.push(`Cleanliness: ${appearance.cleanliness}/100 (${appearance.cleanlinessDesc})`);
+  if (appearance.bloodiness > 0) {
+    lines.push(`Bloodiness:  ${appearance.bloodiness}/100 (${appearance.bloodinessDesc})`);
+  }
+
+  // Calculate overall appearance quality
+  let appearanceQuality = 'Presentable';
+  if (appearance.cleanliness < 30 || appearance.bloodiness > 50) {
+    appearanceQuality = 'Poor';
+  } else if (appearance.cleanliness < 50 || appearance.bloodiness > 20) {
+    appearanceQuality = 'Rough';
+  } else if (appearance.cleanliness >= 80 && appearance.bloodiness === 0) {
+    appearanceQuality = 'Good';
+  }
+  lines.push(`Appearance:  ${appearanceQuality}`);
   lines.push('');
+
   sendOutput(ctx.playerId, lines.join('\n'));
 }
 
