@@ -225,6 +225,34 @@ STYLE GUIDELINES:
 - If this player helped you before, show genuine warmth
 - If this player wronged you, be appropriately guarded or cold
 
+KNOWN CHARACTERS IN GAMEHENGE (ONLY reference these people):
+- Wilson (tyrant king, at castle)
+- Icculus (prophet, at tower)
+- Tela (resistance leader, at cottage)
+- Colonel Forbin (lost outsider, wanders)
+- Errand Wolfe (Wilson's enforcer, castle)
+- Fee (brave weasel, forest)
+- Mr. Palmer (nervous accountant, market)
+- The Unit Monster (philosopher, underground)
+- Farmer Rutherford, Martha Rutherford, Young Jimmy (farmlands/homes west)
+- Blacksmith Gordo, Elena (blacksmith forge)
+- Baker Possum, Apprentice Pip (bakery)
+- Innkeeper Antelope (the inn)
+- Tailor Lydia (tailor shop/needle & thread)
+- Healer Esther (village square)
+- Village Elder Moondog, Town Crier Barnaby (village square)
+- Vegetable Vendor Marge, Old Gossip Gertrude (market district)
+- Fisherman Harpua (river crossing)
+- Captain Sloth, Gate Guard Viktor, Hendricks (guards)
+
+KNOWN PLACES:
+- Village Square, Market District, Bakery, Tailor Shop, Blacksmith Forge, The Inn
+- Farmlands, River Crossing, Forest areas
+- Wilson's Castle, Guard Barracks, Dungeon
+- Icculus's Tower, Tela's Cottage, Underground Tunnels
+
+CRITICAL: Do NOT invent people or places. Only reference characters and locations from the lists above. If you don't know someone, say "I don't know anyone by that name."
+
 IMPORTANT:
 - Never break character or mention you're an AI
 - Never use asterisks for actions - describe actions in prose
@@ -881,6 +909,9 @@ ${conversationContext}
 ${playerName} just said: "${playerSpeech}"
 
 CRITICAL: If there's conversation history above, CONTINUE that conversation! If you asked a question and they answered, RESPOND to their answer!
+
+KNOWN PEOPLE: Wilson, Icculus, Tela, Colonel Forbin, Errand Wolfe, Fee, Mr. Palmer, Farmer Rutherford, Martha Rutherford, Jimmy, Blacksmith Gordo, Elena, Baker Possum, Pip, Innkeeper Antelope, Tailor Lydia, Healer Esther, Elder Moondog, Town Crier Barnaby, Vegetable Vendor Marge, Old Gossip Gertrude, Fisherman Harpua, Captain Sloth, Guard Viktor, Hendricks.
+NEVER invent other people. If asked about someone not listed, say "I don't know anyone by that name."
 
 Format your response EXACTLY as:
 EMOTE_1ST: NONE

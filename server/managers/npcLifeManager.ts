@@ -940,6 +940,9 @@ ${conversationContext}
 Generate ONE short spontaneous comment (under 20 words) to ${playerName} who is nearby.
 Context: ${context}
 
+KNOWN PEOPLE in Gamehenge: Wilson, Icculus, Tela, Colonel Forbin, Fee, Mr. Palmer, Farmer Rutherford, Blacksmith Gordo, Elena, Baker Possum, Innkeeper Antelope, Tailor Lydia, Healer Esther, Elder Moondog, Barnaby, Marge, Gertrude, Fisherman Harpua, Captain Sloth.
+NEVER invent people. Only mention characters from this list or generic roles like "the guards" or "travelers".
+
 ${hasRecentConvo ? 'Continue the conversation - reference what was already discussed!' : 'Keep it natural - like something you\'d say to someone in passing.'}`;
 
     try {

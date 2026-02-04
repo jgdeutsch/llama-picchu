@@ -176,18 +176,23 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
     return;
   }
 
-  // No one was mentioned specifically - pick a random NPC to respond
-  // But only if the message seems conversational (not just "ok" or "yes")
-  if (message.length < 4 && !message.includes('?')) {
-    // Very short message with no question mark - probably a reply to an ongoing conversation
-    // Check if there's a recent speaker they might be responding to
-    const lastSpeaker = getLastRoomSpeaker(ctx.roomId);
-    if (lastSpeaker && lastSpeaker.speakerType === 'npc') {
-      // They're probably responding to the last NPC who spoke
+  // No one was mentioned specifically - check if there's a recent speaker they're replying to
+  // This handles messages like "rhyming?" or "sure" or "thanks" - replies to whoever just spoke
+  const lastSpeaker = getLastRoomSpeaker(ctx.roomId);
+  if (lastSpeaker && lastSpeaker.speakerType === 'npc') {
+    // Check if the message seems like a reply (short, or a question about what was said)
+    const isShortReply = message.length < 15;
+    const isQuestionAboutLastMessage = message.includes('?') && message.length < 30;
+    // Check if the player's message references something from the last speaker's message
+    const lastMessageWords = lastSpeaker.whatTheySaid.toLowerCase().split(/\s+/);
+    const playerWords = message.toLowerCase().split(/\s+/);
+    const hasOverlap = playerWords.some(w => w.length > 3 && lastMessageWords.includes(w));
+
+    if (isShortReply || isQuestionAboutLastMessage || hasOverlap) {
       const lastNpc = friendlyNpcs.find(n => n.npcTemplateId === lastSpeaker.speakerId);
       const lastTemplate = lastNpc ? npcTemplates.find(t => t.id === lastNpc.npcTemplateId) : null;
       if (lastNpc && lastTemplate) {
-        console.log(`[NPC Speech] Short reply "${message}" - routing to last speaker: ${lastTemplate.name}`);
+        console.log(`[NPC Speech] Reply "${message}" - routing to last speaker: ${lastTemplate.name}`);
         await generateAndSendNpcReaction(ctx, lastNpc, lastTemplate, message, true);
         return;
       }
