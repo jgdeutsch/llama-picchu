@@ -9,6 +9,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 1,
     name: 'Wilson',
+    gender: 'male',
     shortDesc: 'The tyrant king Wilson sits upon his throne of black stone, radiating cold authority.',
     longDesc: 'Wilson is tall and gaunt, his face a mask of cruel intelligence. His eyes are pale and calculating, missing nothing. Fine clothes of Prussian blue can\'t hide the predator beneath. He stole the Helping Friendly Book to control the Lizards, and he will do anything to keep his power. When he speaks, his voice is soft - which somehow makes it more terrifying.',
     type: 'questgiver',
@@ -42,6 +43,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 2,
     name: 'Icculus',
+    gender: 'male',
     shortDesc: 'Icculus the prophet sits in quiet contemplation, his ancient eyes holding depths of knowledge.',
     longDesc: 'Icculus appears impossibly old, yet his eyes are sharp and clear as a child\'s. His robes shimmer with colors that don\'t quite exist. He wrote the Helping Friendly Book and gave it to the Lizards, and its theft weighs heavily on him. He speaks in riddles because he\'s seen that direct answers rarely help. Wisdom, he believes, must be earned.',
     type: 'questgiver',
@@ -74,6 +76,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 3,
     name: 'Tela',
+    gender: 'female',
     shortDesc: 'A fierce-eyed woman studies a map, her hands never far from a concealed blade.',
     longDesc: 'Tela burns with quiet intensity. She was once a scholar, but Wilson\'s cruelty transformed her into the leader of the resistance. Her cottage appears humble, but beneath it lies a network of tunnels and a burning determination to free her people. She trusts slowly but completely, and she never, ever forgets a slight - or a kindness.',
     type: 'questgiver',
@@ -106,6 +109,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 4,
     name: 'Colonel Forbin',
+    gender: 'male',
     shortDesc: 'A confused-looking man in strange clothes studies his surroundings with wonder and worry.',
     longDesc: 'Colonel Forbin is not from Gamehenge. He stumbled through from... somewhere else. The modern military uniform he wears is out of place here, and he seems perpetually baffled by magic, talking animals, and medieval politics. Yet there\'s a quiet courage in him - he climbed the mountain to find Icculus despite his fear, and he keeps trying to help even when he doesn\'t understand.',
     type: 'questgiver',
@@ -138,6 +142,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 5,
     name: 'Errand Wolfe',
+    gender: 'male',
     shortDesc: 'A massive armored figure stands watch, his face unreadable behind a helm.',
     longDesc: 'Errand Wolfe is Wilson\'s enforcer - a mountain of muscle and menace. But behind the brutality is a man in conflict. He follows orders because that\'s what he knows, but lately the orders have become harder to stomach. He speaks little, watches everything, and sometimes you catch him staring at nothing, lost in thoughts he\'d never share.',
     type: 'enemy',
@@ -178,6 +183,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 6,
     name: 'Fee',
+    gender: 'female',
     shortDesc: 'A clever-looking weasel watches you with bright, curious eyes.',
     longDesc: 'Fee is small but mighty - a weasel of exceptional intelligence and even more exceptional bravery. She moves through Gamehenge like a shadow, gathering information and carrying messages for the resistance. Quick-witted and quick-tongued, she has a comment for everything and a knack for appearing at exactly the right moment.',
     type: 'questgiver',
@@ -210,6 +216,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 7,
     name: 'Mr. Palmer',
+    gender: 'male',
     shortDesc: 'A nervous-looking man shuffles papers, muttering numbers under his breath.',
     longDesc: 'Mr. Palmer is Wilson\'s accountant - or was. Now he wanders the crossroads, having suffered a breakdown from the stress of creative bookkeeping for a tyrant. His mind is still sharp beneath the anxiety, and he knows things - things Wilson would rather stay hidden. He talks in frantic bursts and flinches at loud noises.',
     type: 'questgiver',
@@ -242,6 +249,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 8,
     name: 'The Unit Monster',
+    gender: 'neutral',
     shortDesc: 'A bizarre creature of many parts sits in philosophical contemplation.',
     longDesc: 'The Unit Monster is... difficult to describe. Multiple heads sprout from a misshapen body, each with its own personality and viewpoint. It speaks in debates with itself, reaching conclusions through internal argument. It lives in the underground tunnels, offering paradoxical wisdom to those brave enough to ask. Physically harmless, mentally challenging.',
     type: 'questgiver',
@@ -274,6 +282,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 9,
     name: 'AC/DC Bag',
+    gender: 'neutral',
     shortDesc: 'A mysterious figure in a flowing cloak radiates power and ambiguity.',
     longDesc: 'AC/DC Bag is a force of nature more than a person. They appear when they choose, speak in riddles wrapped in enigmas, and possess power that defies understanding. Friend or foe? Even they might not know. They seem to exist outside the normal flow of events, nudging things in directions only they comprehend.',
     type: 'ambient',
@@ -310,6 +319,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 10,
     name: 'Farmer Rutherford',
+    gender: 'male',
     shortDesc: 'A weathered farmer wipes sweat from his brow, calloused hands never idle.',
     longDesc: 'Rutherford has worked this land for thirty years. His back is bent from labor, his face lined by sun and worry, but his spirit remains unbroken. He farms for his family and his neighbors, giving what he can despite Wilson\'s crushing taxes. He speaks simply and judges people by their actions, not their words.',
     type: 'shopkeeper',
@@ -346,6 +356,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 106,
     name: 'Gate Guard Viktor',
+    gender: 'male',
     shortDesc: 'A stern Prussian guard stands at attention, hand on his sword hilt.',
     longDesc: 'Viktor has served Wilson for fifteen years. He believes in order above all else - the Lizards need control, Wilson provides it. Simple. He doesn\'t ask questions because questions lead to doubt, and doubt leads to weakness. He\'s not cruel for pleasure, just... efficient.',
     type: 'enemy',
@@ -385,6 +396,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 107,
     name: 'Dungeon Jailer Grubb',
+    gender: 'male',
     shortDesc: 'A hunched figure rattles keys, muttering to the shadows.',
     longDesc: 'Grubb has been in this dungeon so long he\'s become part of it. He talks to the prisoners, the rats, and the stones with equal enthusiasm. There\'s kindness buried somewhere under layers of madness and loneliness - he sometimes "forgets" to deliver punishments, and his keys go missing more often than they should.',
     type: 'shopkeeper',
@@ -416,6 +428,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 108,
     name: 'Guard Captain Sloth',
+    gender: 'male',
     shortDesc: 'A massive, slow-moving guard captain surveys the barracks with tired eyes.',
     longDesc: 'Captain Sloth earned his nickname by being unmovable rather than slow. He\'s a massive man who thinks before acting, speaks rarely, and carries the weight of too many bad orders on his conscience. Lately, he\'s been asking questions - quietly, to himself - about whether order is worth any price.',
     type: 'questgiver',
@@ -447,6 +460,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 109,
     name: 'Prussian Soldier Hendricks',
+    gender: 'male',
     shortDesc: 'A young soldier polishes his armor, looking bored and restless.',
     longDesc: 'Hendricks is young, dumb, and full of the confidence that comes from never having faced real consequences. He joined Wilson\'s army for the steady pay and the cool uniform. He\'s not evil, just thoughtless - the orders he follows are "just how things are." Given a choice, he\'d rather be drinking at a tavern.',
     type: 'ambient',
@@ -478,6 +492,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 110,
     name: 'Cook Martha',
+    gender: 'female',
     shortDesc: 'A harried Lizard woman stirs a massive pot, commanding the kitchen with sharp words.',
     longDesc: 'Martha has cooked in Wilson\'s kitchen for twelve years - not by choice, but because her skills kept her family safe. She\'s mastered the art of looking busy while doing exactly as much as required, and she\'s smuggled more food to the resistance than anyone suspects. Her loyalty is to her people, not her employer.',
     type: 'shopkeeper',
@@ -513,6 +528,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 111,
     name: 'Border Guard Thorne',
+    gender: 'male',
     shortDesc: 'A grim-faced guard checks papers with mechanical efficiency.',
     longDesc: 'Thorne does his job and nothing more. He\'s seen too much to care about Wilson\'s ideology - he just wants to survive until retirement. He\'ll enforce the rules because that\'s what he\'s paid to do, but he won\'t go looking for trouble. A bribe might work. Might.',
     type: 'ambient',
@@ -543,6 +559,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 112,
     name: 'Village Elder Moondog',
+    gender: 'female',
     shortDesc: 'An elderly Lizard with kind eyes sits on a bench, watching the square.',
     longDesc: 'Elder Moondog has seen four tyrants come and go. Wilson will pass too, she\'s certain. In the meantime, she tends to her community with quiet wisdom, settling disputes and remembering the old stories. She\'s the unofficial heart of the village - nothing important happens without her knowing.',
     type: 'questgiver',
@@ -574,6 +591,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 113,
     name: 'Baker Possum',
+    gender: 'male',
     shortDesc: 'A flour-dusted Lizard kneads dough with practiced hands, humming an old tune.',
     longDesc: 'Possum inherited the bakery from his father and will pass it to his daughter someday. He\'s round, jolly, and believes that good bread fixes most problems. His shop is a safe space where even Wilson\'s guards occasionally forget their duties and just enjoy a warm roll. He knows everyone\'s secrets because everyone talks while eating.',
     type: 'shopkeeper',
@@ -609,6 +627,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 114,
     name: 'Innkeeper Antelope',
+    gender: 'male',
     shortDesc: 'A tall, watchful Lizard tends the bar, his ears always alert.',
     longDesc: 'Antelope runs the Divided Sky Inn with quiet competence. He sees everything, hears everything, and says almost nothing. The inn is neutral ground by his decree - all are welcome as long as they pay and don\'t start trouble. His silence isn\'t coldness; it\'s professionalism. Those who earn his trust find a valuable ally.',
     type: 'innkeeper',
@@ -644,6 +663,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 115,
     name: 'Blacksmith Gordo',
+    gender: 'male',
     shortDesc: 'A massive, soot-covered Lizard pounds metal at the forge, muscles rippling.',
     longDesc: 'Gordo is built like a bull and has the temperament to match - quick to anger, quick to forgive, and absolutely devoted to his craft. He makes tools, weapons, and anything else that needs forging. He pretends to grumble about everything but secretly loves helping his neighbors. Don\'t mention his bald spot.',
     type: 'shopkeeper',
@@ -681,6 +701,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 116,
     name: 'Elena',
+    gender: 'female',
     shortDesc: 'A young Lizard woman looks up from a ledger, ink stains on her fingers.',
     longDesc: 'Elena has her father\'s work ethic and her mother\'s (absent) brains. She keeps the forge\'s books, handles customers, and dreams of something more. She reads every book she can find - dangerous under Wilson\'s rule - and wonders what life is like beyond Gamehenge. She\'s kind, curious, and more courageous than she knows.',
     type: 'questgiver',
@@ -712,6 +733,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 117,
     name: 'Council Elder Jiboo',
+    gender: 'male',
     shortDesc: 'An ancient Lizard sits in ceremonial robes, eyes closed in thought.',
     longDesc: 'Jiboo has led the Lizard Council for forty years - long enough to remember freedom and deeply feel its loss. He maintains the council because tradition matters, because hope matters, even when power doesn\'t. His mind wanders sometimes, but his conviction never wavers: the Book will return, the Lizards will be free.',
     type: 'questgiver',
@@ -743,6 +765,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 118,
     name: 'Martha Rutherford',
+    gender: 'female',
     shortDesc: 'A tired but kind-faced woman tends a small garden, humming softly.',
     longDesc: 'Martha is Farmer Rutherford\'s wife and the heart of their small household. She manages the home, raises their son, and somehow finds enough food to share with neighbors despite Wilson\'s taxes. Her strength is in her steadiness - she\'s the rock her family builds their lives around.',
     type: 'ambient',
@@ -774,6 +797,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 119,
     name: 'Young Jimmy',
+    gender: 'male',
     shortDesc: 'A small Lizard child runs around playing, full of energy and questions.',
     longDesc: 'Jimmy is eight years old and bursting with curiosity. He doesn\'t understand politics or oppression - to him, the world is full of wonders to explore. He asks endless questions, makes up elaborate games, and believes absolutely that good guys always win. His innocence is both treasure and tragedy.',
     type: 'ambient',
@@ -805,6 +829,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 120,
     name: 'Fisherman Harpua',
+    gender: 'male',
     shortDesc: 'An old Lizard sits by the river, fishing line in the water, lost in thought.',
     longDesc: 'Harpua has fished this river for fifty years. He\'s seen floods and droughts, tyrants and rebellions, and through it all he\'s kept fishing. He speaks slowly, thinks deeply, and has the patience of water wearing stone. He also tells the most outrageous lies about the size of fish he\'s caught.',
     type: 'questgiver',
@@ -836,6 +861,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 121,
     name: 'Healer Esther',
+    gender: 'female',
     shortDesc: 'A middle-aged Lizard woman carefully sorts herbs, her movements precise.',
     longDesc: 'Esther learned healing from her grandmother, who learned from hers. She tends the sick, births the babies, and eases the dying - all without formal training or recognition. She\'s matter-of-fact about her work, neither warm nor cold, simply competent. She\'s seen too much death to be sentimental, but she fights for every life.',
     type: 'shopkeeper',
@@ -871,6 +897,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 122,
     name: 'Town Crier Barnaby',
+    gender: 'male',
     shortDesc: 'A flamboyant Lizard in a feathered cap stands by the fountain, bell in hand.',
     longDesc: 'Barnaby the Town Crier is the village\'s theatrical soul - part news broadcaster, part entertainer, part philosopher. He announces arrivals with elaborate flourishes, comments on the weather with existential dread, and somehow makes tax proclamations sound like tragic poetry. His wit is sharp, his voice carries, and his observations about passersby are uncannily accurate. Some say he knows everyone\'s business; others say he just makes very good guesses.',
     type: 'ambient',
@@ -903,6 +930,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 123,
     name: 'Vegetable Vendor Marge',
+    gender: 'female',
     shortDesc: 'A stout Lizard woman arranges vegetables on her stall, calling out prices.',
     longDesc: 'Marge has been selling vegetables in this market for thirty years. She knows the quality of every farm in Gamehenge and which crops survived Wilson\'s latest tax raid. Her prices are fair, her produce is fresh, and her opinions are freely given whether you asked for them or not.',
     type: 'shopkeeper',
@@ -930,6 +958,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 124,
     name: 'Old Gossip Gertrude',
+    gender: 'female',
     shortDesc: 'An elderly Lizard sits on an overturned crate, watching everyone with sharp eyes.',
     longDesc: 'Gertrude knows everything that happens in this village. She\'s been sitting in this spot for so long that people forget she\'s there and say things they shouldn\'t. She trades in information - tell her something interesting, and she might tell you something useful.',
     type: 'ambient',
@@ -957,6 +986,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 125,
     name: 'Apprentice Baker Pip',
+    gender: 'male',
     shortDesc: 'A young Lizard covered in flour kneads dough with intense concentration.',
     longDesc: 'Pip dreams of being a master baker someday. For now, he kneads, he carries, he sweeps, and he sneaks bites of fresh bread when Possum isn\'t looking. He\'s clumsy but earnest, and his enthusiasm is infectious.',
     type: 'ambient',
@@ -984,6 +1014,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 126,
     name: 'Tailor Lydia',
+    gender: 'female',
     shortDesc: 'A precise Lizard woman measures fabric with a practiced eye, needle tucked behind her ear.',
     longDesc: 'Lydia makes clothes that last. In a world where most can\'t afford to replace worn garments, that matters. She also, for the right customer, makes clothes that help people disappear - grey cloaks, reversible jackets, garments with hidden pockets. The resistance knows her well.',
     type: 'shopkeeper',
@@ -1018,6 +1049,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 127,
     name: 'Shopkeeper Stumpy',
+    gender: 'male',
     shortDesc: 'A wiry Lizard with a wooden leg sorts through an impossible variety of goods.',
     longDesc: 'Stumpy lost his leg to a threshing accident years ago, but he found his calling in commerce. His shop is chaos to the untrained eye, but he knows where everything is. He\'ll sell you anything legal, and some things that aren\'t - for the right price. Haggling isn\'t just expected, it\'s required.',
     type: 'shopkeeper',
@@ -1050,6 +1082,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 128,
     name: 'Playing Children',
+    gender: 'neutral',
     shortDesc: 'A group of young Lizards chase each other around the fountain, laughing.',
     longDesc: 'Three or four children play an endless game of tag around the dry fountain. They\'re too young to fully understand why times are hard, but old enough to know not to talk to strangers about certain things. Their laughter is the brightest sound in the square.',
     type: 'ambient',
@@ -1077,6 +1110,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 129,
     name: 'Off-duty Worker Brom',
+    gender: 'male',
     shortDesc: 'A tired-looking Lizard sits on the fountain edge, eating a simple lunch.',
     longDesc: 'Brom works the fields from dawn to midday, then has an hour to himself before the afternoon shift. He spends it here, in the square, watching people and trying not to think about how little his labor earns. He\'s not bitter - just tired.',
     type: 'ambient',
@@ -1104,6 +1138,7 @@ export const npcTemplates: NpcTemplate[] = [
   {
     id: 130,
     name: 'Old Timer Whittler',
+    gender: 'male',
     shortDesc: 'An ancient Lizard whittles a small figure on his porch, humming tunelessly.',
     longDesc: 'The old timer - no one remembers his real name anymore - sits on this porch every day, whittling figures from scraps of wood. He\'s seen everything, survived everything, and now he just wants to make small wooden animals and be left alone. His carvings are actually quite beautiful.',
     type: 'ambient',

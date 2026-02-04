@@ -37,9 +37,12 @@ export interface ShopInventory {
   sellPriceMultiplier: number; // Multiply item value (usually 0.5)
 }
 
+export type NpcGender = 'male' | 'female' | 'neutral' | 'unknown';
+
 export interface NpcTemplate {
   id: number;
   name: string;
+  gender: NpcGender;  // For pronouns: he/she/they/it
   shortDesc: string;
   longDesc: string;
   type: NpcType;
