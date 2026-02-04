@@ -97,8 +97,9 @@ async function processLookAt(ctx: CommandContext): Promise<void> {
     const template = npcTemplates.find((t) => t.id === npc.npcTemplateId);
     if (template) {
       // Generate personalized description based on player's history with this NPC
+      let description = '';
       try {
-        const personalizedDesc = await generatePersonalizedNpcDescription(
+        description = await generatePersonalizedNpcDescription(
           npc.npcTemplateId,
           template.name,
           template.longDesc,
@@ -106,11 +107,28 @@ async function processLookAt(ctx: CommandContext): Promise<void> {
           ctx.playerId,
           ctx.playerName
         );
-        sendOutput(ctx.playerId, `\n${personalizedDesc}\n`);
       } catch (error) {
         // Fallback to standard description
-        sendOutput(ctx.playerId, `\n${template.longDesc}\n`);
+        description = template.longDesc;
       }
+
+      // Add shop inventory if this NPC sells things
+      if (template.shopInventory && template.shopInventory.length > 0) {
+        description += '\n\n[FOR SALE]';
+        for (const shopItem of template.shopInventory.slice(0, 8)) {
+          const itemTemplate = itemTemplates.find(i => i.id === shopItem.itemTemplateId);
+          if (itemTemplate) {
+            const price = Math.floor((itemTemplate.value || 10) * shopItem.buyPriceMultiplier);
+            description += `\n  ${itemTemplate.name} - ${price} gold`;
+          }
+        }
+        if (template.shopInventory.length > 8) {
+          description += `\n  ...and ${template.shopInventory.length - 8} more items.`;
+        }
+        description += '\n\nUse "buy <item>" to purchase or "talk <name>" to chat.';
+      }
+
+      sendOutput(ctx.playerId, `\n${description}\n`);
       return;
     }
   }
@@ -127,11 +145,12 @@ async function processLookAt(ctx: CommandContext): Promise<void> {
   for (const p of playersInRoom) {
     if (p.name.toLowerCase().includes(target)) {
       const classDef = playerManager.getClassDefinition(p.class_id);
+      const equipmentDesc = buildEquipmentDescription(p.id, p.id === ctx.playerId);
       if (p.id === ctx.playerId) {
         // Looking at yourself
-        sendOutput(ctx.playerId, `\nYou examine yourself. You are ${p.name}, a level ${p.level} ${classDef?.name || 'llama'}.\n`);
+        sendOutput(ctx.playerId, `\nYou examine yourself. You are ${p.name}, a level ${p.level} ${classDef?.name || 'llama'}.\n${equipmentDesc}\n`);
       } else {
-        sendOutput(ctx.playerId, `\nYou see ${p.name}, a level ${p.level} ${classDef?.name || 'llama'}.\n`);
+        sendOutput(ctx.playerId, `\nYou see ${p.name}, a level ${p.level} ${classDef?.name || 'llama'}.\n${equipmentDesc}\n`);
       }
       return;
     }
@@ -626,6 +645,91 @@ async function buildConversationContext(
   return context;
 }
 
+// Build a detailed list of what someone is wearing/carrying (for look command)
+function buildEquipmentDescription(playerId: number, isSelf: boolean): string {
+  const equipment = playerManager.getEquipment(playerId);
+  const lines: string[] = [];
+  const pronoun = isSelf ? 'You are' : 'They are';
+  const possessive = isSelf ? 'Your' : 'Their';
+
+  // Build wearing/carrying list
+  const wearing: string[] = [];
+  const wielding: string[] = [];
+
+  if (equipment.head) {
+    const item = itemTemplates.find(i => i.id === equipment.head);
+    if (item) wearing.push(`${item.name} (head)`);
+  }
+  if (equipment.body) {
+    const item = itemTemplates.find(i => i.id === equipment.body);
+    if (item) wearing.push(`${item.name} (body)`);
+  }
+  if (equipment.legs) {
+    const item = itemTemplates.find(i => i.id === equipment.legs);
+    if (item) wearing.push(`${item.name} (legs)`);
+  }
+  if (equipment.feet) {
+    const item = itemTemplates.find(i => i.id === equipment.feet);
+    if (item) wearing.push(`${item.name} (feet)`);
+  }
+  if (equipment.hands) {
+    const item = itemTemplates.find(i => i.id === equipment.hands);
+    if (item) wearing.push(`${item.name} (hands)`);
+  }
+  if (equipment.back) {
+    const item = itemTemplates.find(i => i.id === equipment.back);
+    if (item) wearing.push(`${item.name} (back)`);
+  }
+  if (equipment.neck) {
+    const item = itemTemplates.find(i => i.id === equipment.neck);
+    if (item) wearing.push(`${item.name} (neck)`);
+  }
+  if (equipment.ring1) {
+    const item = itemTemplates.find(i => i.id === equipment.ring1);
+    if (item) wearing.push(`${item.name} (ring)`);
+  }
+  if (equipment.ring2) {
+    const item = itemTemplates.find(i => i.id === equipment.ring2);
+    if (item) wearing.push(`${item.name} (ring)`);
+  }
+
+  if (equipment.mainHand) {
+    const item = itemTemplates.find(i => i.id === equipment.mainHand);
+    if (item) wielding.push(`${item.name} (main hand)`);
+  }
+  if (equipment.offHand) {
+    const item = itemTemplates.find(i => i.id === equipment.offHand);
+    if (item) wielding.push(`${item.name} (off hand)`);
+  }
+
+  // Check for bags in inventory
+  const inventory = playerManager.getInventory(playerId);
+  const bags = inventory.filter(item => {
+    const template = itemTemplates.find(t => t.id === item.templateId);
+    return template?.type === 'container' || template?.slot === 'back';
+  });
+
+  if (wearing.length > 0) {
+    lines.push(`${pronoun} wearing: ${wearing.join(', ')}`);
+  } else {
+    lines.push(`${pronoun} wearing simple, worn clothes.`);
+  }
+
+  if (wielding.length > 0) {
+    lines.push(`${pronoun} wielding: ${wielding.join(', ')}`);
+  }
+
+  if (bags.length > 0) {
+    const bagNames = bags.map(b => {
+      const t = itemTemplates.find(i => i.id === b.templateId);
+      return t?.name || 'a bag';
+    });
+    lines.push(`${pronoun} carrying: ${bagNames.join(', ')}`);
+  }
+
+  return lines.join('\n');
+}
+
 // Build a description of what the player looks like based on their equipment
 function buildPlayerAppearanceDescription(playerId: number): string {
   const equipment = playerManager.getEquipment(playerId);
@@ -677,6 +781,28 @@ function buildPlayerAppearanceDescription(playerId: number): string {
   return parts.join(', ') + '.';
 }
 
+// Build description of shop inventory for NPC dialogue
+function buildShopInventoryContext(npcTemplateId: number): string {
+  const template = npcTemplates.find(t => t.id === npcTemplateId);
+  if (!template?.shopInventory || template.shopInventory.length === 0) {
+    return '';
+  }
+
+  const items: string[] = [];
+  for (const shopItem of template.shopInventory) {
+    const itemTemplate = itemTemplates.find(i => i.id === shopItem.itemTemplateId);
+    if (itemTemplate) {
+      const price = Math.floor((itemTemplate.value || 10) * shopItem.buyPriceMultiplier);
+      const stock = shopItem.stock === -1 ? 'unlimited' : `${shopItem.stock} in stock`;
+      items.push(`- ${itemTemplate.name}: ${price} gold (${stock})`);
+    }
+  }
+
+  if (items.length === 0) return '';
+
+  return `\nYOUR SHOP INVENTORY (offer these to customers!):\n${items.join('\n')}`;
+}
+
 // Build a description of what's happening nearby for context
 function buildWorldContext(roomId: string, excludeNpcId: number, playerId?: number): string {
   const parts: string[] = [];
@@ -720,6 +846,12 @@ function buildWorldContext(roomId: string, excludeNpcId: number, playerId?: numb
     if (wantsSummary) {
       parts.push(wantsSummary);
     }
+  }
+
+  // Add shop inventory if this NPC is a shopkeeper
+  const shopInventory = buildShopInventoryContext(excludeNpcId);
+  if (shopInventory) {
+    parts.push(shopInventory);
   }
 
   return parts.join('. ') || 'The area is quiet';

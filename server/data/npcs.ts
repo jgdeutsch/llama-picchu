@@ -33,7 +33,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['wilson', 'king', 'tyrant'],
+    keywords: ['wilson', 'king', 'tyrant', 'man'],
     // Extended personality for LLM:
     // PERSONALITY: Cruel, paranoid, eloquent, soft-spoken but terrifying
     // TRAITS: Narcissistic, calculating, rarely raises voice, subtle threats
@@ -66,7 +66,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['icculus', 'prophet', 'sage', 'old man'],
+    keywords: ['icculus', 'prophet', 'sage', 'old', 'man'],
     // PERSONALITY: Cryptic, wise, amused by existence, speaks in koans and riddles
     // TRAITS: Never gives straight answers, philosophically absurdist, gentle
     // MOOD DEFAULT: Serene, contemplative, slightly amused
@@ -98,7 +98,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['tela', 'resistance', 'leader', 'woman'],
+    keywords: ['tela', 'resistance', 'leader', 'woman', 'lizard'],
     // PERSONALITY: Fierce, caring under a hard exterior, strategic, slow to trust
     // TRAITS: Direct, impatient with fools, remembers everything, passionate
     // MOOD DEFAULT: Guarded, intense
@@ -130,7 +130,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['forbin', 'colonel', 'soldier', 'stranger', 'man'],
+    keywords: ['forbin', 'colonel', 'soldier', 'stranger', 'man', 'human'],
     // PERSONALITY: Confused but brave, out of place, earnest, tries to apply logic
     // TRAITS: Fish out of water, curious, helpful, occasionally overwhelmed
     // MOOD DEFAULT: Bewildered but determined
@@ -170,7 +170,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 3600, // 1 hour
-    keywords: ['wolfe', 'enforcer', 'errand', 'guard', 'soldier'],
+    keywords: ['wolfe', 'enforcer', 'errand', 'guard', 'soldier', 'man'],
     // PERSONALITY: Brutal, conflicted, man of few words, follows orders but doubts them
     // TRAITS: Laconic, intimidating, surprisingly thoughtful, haunted
     // MOOD DEFAULT: Grim, watchful
@@ -202,7 +202,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['fee', 'weasel', 'animal', 'creature'],
+    keywords: ['fee', 'weasel', 'animal', 'creature', 'furry'],
     // PERSONALITY: Quick, clever, brave, loves shiny things, loyal to friends
     // TRAITS: Fast talker, sneaky, proud, easily excited, surprisingly fierce
     // MOOD DEFAULT: Alert, curious, slightly mischievous
@@ -234,7 +234,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['palmer', 'accountant', 'nervous', 'man'],
+    keywords: ['palmer', 'accountant', 'nervous', 'man', 'mr'],
     // PERSONALITY: Anxious, paranoid, but brilliant with numbers, knows secrets
     // TRAITS: Jumpy, mutters to self, breaks into tangents, sees patterns
     // MOOD DEFAULT: Nervous, twitchy, but helpful if approached gently
@@ -266,7 +266,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['unit', 'monster', 'creature', 'philosopher'],
+    keywords: ['unit', 'monster', 'creature', 'philosopher', 'thing'],
     // PERSONALITY: Multi-perspective philosopher, absurdist, debates itself
     // TRAITS: Never gives simple answers, each head has own personality, helpful in weird ways
     // MOOD DEFAULT: Contemplative, curious, internally argumentative
@@ -298,7 +298,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['ac', 'dc', 'bag', 'mysterious', 'figure'],
+    keywords: ['ac', 'dc', 'bag', 'mysterious', 'figure', 'cloaked'],
     // PERSONALITY: Enigmatic, powerful, speaks in paradoxes, neither good nor evil
     // TRAITS: Appears randomly, reality-bending, prophetic, amused by existence
     // MOOD DEFAULT: Mysteriously serene
@@ -338,7 +338,7 @@ export const npcTemplates: NpcTemplate[] = [
       { itemTemplateId: 55, stock: 15, buyPriceMultiplier: 0.8, sellPriceMultiplier: 0.4 }, // Vegetables
     ],
     respawnSeconds: 0,
-    keywords: ['rutherford', 'farmer', 'man'],
+    keywords: ['rutherford', 'farmer', 'man', 'lizard'],
     // PERSONALITY: Stoic, hardworking, honest, simple but wise
     // TRAITS: Judges by actions not words, protective of family, quietly resentful of Wilson
     // MOOD DEFAULT: Tired but determined
@@ -377,7 +377,7 @@ export const npcTemplates: NpcTemplate[] = [
       goldMax: 25,
     },
     respawnSeconds: 600,
-    keywords: ['viktor', 'guard', 'gate', 'soldier'],
+    keywords: ['viktor', 'guard', 'gate', 'soldier', 'man'],
     // PERSONALITY: Stern, orderly, unquestioning, not cruel but cold
     // TRAITS: Follows rules exactly, speaks in clipped sentences, suspicious of outsiders
     // MOOD DEFAULT: Watchful, severe
@@ -408,7 +408,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['grubb', 'jailer', 'keeper', 'dungeon'],
+    keywords: ['grubb', 'jailer', 'keeper', 'dungeon', 'man'],
     // PERSONALITY: Eccentric, lonely, talks to self, secretly sympathetic to prisoners
     // TRAITS: Rambles, speaks in third person sometimes, hints at helping resistance
     // MOOD DEFAULT: Scattered, nervous, oddly cheerful
@@ -439,7 +439,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['sloth', 'captain', 'guard'],
+    keywords: ['sloth', 'captain', 'guard', 'man'],
     // PERSONALITY: Slow-speaking, thoughtful, conflicted, potential ally
     // TRAITS: Long pauses, finishes few sentences, quietly doubting, honorable
     // MOOD DEFAULT: Heavy, contemplative, tired
@@ -470,7 +470,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 300,
-    keywords: ['hendricks', 'soldier', 'guard', 'young'],
+    keywords: ['hendricks', 'soldier', 'guard', 'young', 'man'],
     // PERSONALITY: Young, bored, thoughtless but not malicious, wants easy life
     // TRAITS: Casual speech, easily distracted, might be swayed by kindness
     // MOOD DEFAULT: Bored, restless
@@ -505,7 +505,7 @@ export const npcTemplates: NpcTemplate[] = [
       { itemTemplateId: 52, stock: -1, buyPriceMultiplier: 0.8, sellPriceMultiplier: 0.3 }, // Stew
     ],
     respawnSeconds: 0,
-    keywords: ['martha', 'cook', 'kitchen', 'lizard'],
+    keywords: ['martha', 'cook', 'kitchen', 'lizard', 'woman'],
     // PERSONALITY: Sharp-tongued, secretly kind, resistant, protective
     // TRAITS: Barks orders, helps quietly, loyal to Lizards, hates Wilson
     // MOOD DEFAULT: Busy, stressed, but warm to those she trusts
@@ -535,7 +535,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 300,
-    keywords: ['thorne', 'border', 'guard', 'checkpoint'],
+    keywords: ['thorne', 'border', 'guard', 'checkpoint', 'man'],
     // PERSONALITY: Jaded, pragmatic, corruptible, just wants quiet life
     // TRAITS: Minimal effort, can be bribed, doesn\'t care about ideology
     // MOOD DEFAULT: Bored, indifferent
@@ -566,7 +566,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['moondog', 'elder', 'grandmother', 'wise'],
+    keywords: ['moondog', 'elder', 'grandmother', 'wise', 'woman', 'lizard'],
     // PERSONALITY: Wise, patient, nurturing, remembers history, quiet strength
     // TRAITS: Speaks slowly, uses endearments, unshakeable faith in community
     // MOOD DEFAULT: Serene, welcoming
@@ -601,7 +601,7 @@ export const npcTemplates: NpcTemplate[] = [
       { itemTemplateId: 59, stock: 5, buyPriceMultiplier: 1.0, sellPriceMultiplier: 0.4 }, // Sweet roll
     ],
     respawnSeconds: 0,
-    keywords: ['possum', 'baker', 'bread'],
+    keywords: ['possum', 'baker', 'bread', 'man', 'lizard'],
     // PERSONALITY: Jovial, chatty, loves to feed people, gossip central
     // TRAITS: Always offers food, knows everyone\'s business, non-judgmental
     // MOOD DEFAULT: Cheerful, welcoming
@@ -636,7 +636,7 @@ export const npcTemplates: NpcTemplate[] = [
       { itemTemplateId: 53, stock: -1, buyPriceMultiplier: 0.8, sellPriceMultiplier: 0.3 }, // Ale
     ],
     respawnSeconds: 0,
-    keywords: ['antelope', 'innkeeper', 'bartender'],
+    keywords: ['antelope', 'innkeeper', 'bartender', 'man', 'lizard'],
     // PERSONALITY: Taciturn, observant, professional, neutral in all conflicts
     // TRAITS: Man of few words, sees everything, provides safe space
     // MOOD DEFAULT: Calm, watchful, guarded
@@ -673,7 +673,7 @@ export const npcTemplates: NpcTemplate[] = [
       { itemTemplateId: 21, stock: 2, buyPriceMultiplier: 1.5, sellPriceMultiplier: 0.5 }, // "Defensive tool" (sword)
     ],
     respawnSeconds: 0,
-    keywords: ['gordo', 'blacksmith', 'smith', 'forge'],
+    keywords: ['gordo', 'blacksmith', 'smith', 'forge', 'man', 'lizard'],
     // PERSONALITY: Gruff, loud, secretly soft-hearted, proud of his work
     // TRAITS: Yells, complains, but always helps, loves his daughter
     // MOOD DEFAULT: Irritable on surface, warm underneath
@@ -704,7 +704,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['elena', 'daughter', 'bookkeeper', 'girl'],
+    keywords: ['elena', 'daughter', 'bookkeeper', 'girl', 'woman', 'lizard'],
     // PERSONALITY: Curious, idealistic, dreamer, brave in quiet ways
     // TRAITS: Loves books, wants adventure, kind to everyone, collects stories
     // MOOD DEFAULT: Hopeful, engaged
@@ -735,7 +735,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['jiboo', 'elder', 'council', 'leader'],
+    keywords: ['jiboo', 'elder', 'council', 'leader', 'man', 'lizard'],
     // PERSONALITY: Ancient, wise, occasionally senile, deeply faithful
     // TRAITS: Speaks in metaphors, remembers the past, never gives up hope
     // MOOD DEFAULT: Contemplative, peaceful despite everything
@@ -766,7 +766,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['martha', 'wife', 'mother', 'woman'],
+    keywords: ['martha', 'wife', 'mother', 'woman', 'lizard'],
     // PERSONALITY: Nurturing, resilient, generous despite hardship, warm
     // TRAITS: Always feeds visitors, worries about family, never complains
     // MOOD DEFAULT: Tired but kind
@@ -797,7 +797,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['jimmy', 'boy', 'child', 'kid'],
+    keywords: ['jimmy', 'boy', 'child', 'kid', 'lizard'],
     // PERSONALITY: Innocent, energetic, endlessly curious, believes in heroes
     // TRAITS: Runs everywhere, asks questions, makes everything a game
     // MOOD DEFAULT: Excited, happy
@@ -828,7 +828,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['harpua', 'fisherman', 'old man', 'river'],
+    keywords: ['harpua', 'fisherman', 'old', 'river', 'man', 'lizard'],
     // PERSONALITY: Patient, philosophical, prone to tall tales, river-wise
     // TRAITS: Speaks slowly, exaggerates fish stories, surprisingly insightful
     // MOOD DEFAULT: Tranquil, contemplative
@@ -863,7 +863,7 @@ export const npcTemplates: NpcTemplate[] = [
       { itemTemplateId: 61, stock: 5, buyPriceMultiplier: 1.5, sellPriceMultiplier: 0.5 }, // Healing potion
     ],
     respawnSeconds: 0,
-    keywords: ['esther', 'healer', 'doctor', 'medicine'],
+    keywords: ['esther', 'healer', 'doctor', 'medicine', 'woman', 'lizard'],
     // PERSONALITY: Pragmatic, unsentimental, deeply competent, quiet strength
     // TRAITS: Clinical but caring, knows everyone's medical secrets, blunt
     // MOOD DEFAULT: Focused, calm
@@ -895,7 +895,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['barnaby', 'crier', 'town crier', 'announcer', 'bell'],
+    keywords: ['barnaby', 'crier', 'announcer', 'bell', 'man', 'lizard'],
     // PERSONALITY: Theatrical, witty, observant, Rosencrantz & Guildenstern energy
     // TRAITS: Dramatic flourishes, existential tangents, knows gossip, sharp commentary
     // MOOD DEFAULT: Performative, amused by the absurdity of existence
@@ -925,7 +925,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['marge', 'vendor', 'vegetable', 'vegetables'],
+    keywords: ['marge', 'vendor', 'vegetable', 'vegetables', 'woman', 'lizard', 'stout'],
   },
   {
     id: 124,
@@ -952,7 +952,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['gertrude', 'gossip', 'old', 'crone', 'woman'],
+    keywords: ['gertrude', 'gossip', 'old', 'crone', 'woman', 'lizard'],
   },
   {
     id: 125,
@@ -979,7 +979,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['pip', 'apprentice', 'boy', 'young'],
+    keywords: ['pip', 'apprentice', 'boy', 'young', 'lizard'],
   },
   {
     id: 126,
@@ -1006,11 +1006,14 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     shopInventory: [
-      { itemTemplateId: 70, stock: 5, buyPriceMultiplier: 1.0, sellPriceMultiplier: 0.4 },
-      { itemTemplateId: 71, stock: 3, buyPriceMultiplier: 1.2, sellPriceMultiplier: 0.4 },
+      { itemTemplateId: 70, stock: 5, buyPriceMultiplier: 1.0, sellPriceMultiplier: 0.4 },  // Linen Shirt - 25g
+      { itemTemplateId: 71, stock: 5, buyPriceMultiplier: 1.0, sellPriceMultiplier: 0.4 },  // Wool Pants - 30g
+      { itemTemplateId: 72, stock: 3, buyPriceMultiplier: 1.0, sellPriceMultiplier: 0.4 },  // Grey Cloak - 40g
+      { itemTemplateId: 73, stock: 4, buyPriceMultiplier: 1.0, sellPriceMultiplier: 0.4 },  // Work Boots - 35g
+      { itemTemplateId: 20, stock: 3, buyPriceMultiplier: 1.0, sellPriceMultiplier: 0.4 },  // Woven Wool Tunic - 25g
     ],
     respawnSeconds: 0,
-    keywords: ['lydia', 'tailor', 'seamstress'],
+    keywords: ['lydia', 'tailor', 'seamstress', 'woman', 'lizard'],
   },
   {
     id: 127,
@@ -1042,7 +1045,7 @@ export const npcTemplates: NpcTemplate[] = [
       { itemTemplateId: 82, stock: 5, buyPriceMultiplier: 1.0, sellPriceMultiplier: 0.5 },
     ],
     respawnSeconds: 0,
-    keywords: ['stumpy', 'shopkeeper', 'merchant', 'shop'],
+    keywords: ['stumpy', 'shopkeeper', 'merchant', 'shop', 'man', 'lizard'],
   },
   {
     id: 128,
@@ -1069,7 +1072,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['children', 'kids', 'child', 'young'],
+    keywords: ['children', 'kids', 'child', 'young', 'lizard'],
   },
   {
     id: 129,
@@ -1096,7 +1099,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['brom', 'worker', 'farmer', 'tired'],
+    keywords: ['brom', 'worker', 'farmer', 'tired', 'man', 'lizard'],
   },
   {
     id: 130,
@@ -1123,7 +1126,7 @@ export const npcTemplates: NpcTemplate[] = [
       },
     },
     respawnSeconds: 0,
-    keywords: ['old', 'timer', 'whittler', 'elder', 'ancient'],
+    keywords: ['old', 'timer', 'whittler', 'elder', 'ancient', 'man', 'lizard'],
   },
 ];
 

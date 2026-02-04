@@ -272,7 +272,7 @@ export const roomTemplates: RoomTemplate[] = [
   {
     id: 'tailor_shop',
     name: 'Needle & Thread',
-    description: 'Bolts of fabric in every color lean against the walls. A Lizard woman works at a sewing table, her needle flashing in and out of cloth with practiced speed. Finished garments hang from hooks - practical work clothes, a few finer pieces, and in the back, what might be disguises for those who need to travel unnoticed.',
+    description: 'Bolts of fabric lean against the walls. Lydia the tailor works at a sewing table, her needle flashing in and out of cloth. Finished garments hang from hooks - sturdy linen shirts, wool pants, leather boots, and grey traveling cloaks. Type "look lydia" to see prices.',
     area: 'village',
     exits: [
       { direction: 'east', targetRoom: 'market_district' },
@@ -285,11 +285,11 @@ export const roomTemplates: RoomTemplate[] = [
     features: [
       {
         keywords: ['fabric', 'fabrics', 'cloth', 'bolts'],
-        description: 'Fabrics from all over Gamehenge - rough homespun, fine linen, even some smuggled silk. The colors range from practical browns to rebellious bright yellows.',
+        description: 'Bolts of wool, linen, and cotton in practical colors. These are the raw materials for Lydia\'s craft.',
       },
       {
-        keywords: ['disguises', 'back', 'unnoticed'],
-        description: 'You notice some plain grey cloaks and nondescript traveling clothes. Perfect for someone who doesn\'t want to be recognized.',
+        keywords: ['garments', 'clothes', 'clothing', 'hooks', 'shirts', 'pants', 'boots', 'cloaks'],
+        description: 'Finished garments hang ready: Sturdy Linen Shirts (25g), Wool Travel Pants (30g), Leather Work Boots (35g), and Grey Traveler\'s Cloaks (40g). Use "buy <item>" to purchase.',
       },
     ],
   },
