@@ -2,6 +2,7 @@
 // A living world set in Phish's Gamehenge universe
 // Players can connect from anywhere using: telnet frobark.com 4000
 
+import 'dotenv/config';
 import * as net from 'net';
 import { initializeDatabase, getDatabase, accountQueries, playerQueries, equipmentQueries } from './database';
 import { worldManager } from './managers/worldManager';
