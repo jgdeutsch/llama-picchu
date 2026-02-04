@@ -24,6 +24,7 @@ import {
 } from '../services/geminiService';
 import type { CommandContext } from './index';
 import { npcWantsManager } from '../managers/npcWantsManager';
+import { setLastNpcInteraction } from './communication';
 
 export function processInteractionCommand(ctx: CommandContext, action: string): void {
   switch (action) {
@@ -507,6 +508,10 @@ async function processTalk(ctx: CommandContext): Promise<void> {
 
   // Show thinking indicator for longer conversations
   sendOutput(ctx.playerId, `\n${template.name} considers your words...`);
+
+  // Track that this player is now in conversation with this NPC
+  // This ensures subsequent 'say' commands go to this NPC
+  setLastNpcInteraction(ctx.playerId, npc.npcTemplateId, template.name, ctx.roomId);
 
   // Record the player's message in conversation history BEFORE generating response
   addToConversationHistory(ctx.playerId, npc.npcTemplateId, 'player', message);

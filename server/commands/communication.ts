@@ -261,8 +261,22 @@ async function triggerNpcSpeechReactions(ctx: CommandContext, message: string): 
   // If an NPC was mentioned by name, ONLY they respond - no one else
   if (mentionedNpc && mentionedTemplate) {
     console.log(`[NPC Speech] Only ${mentionedTemplate.name} will respond (was addressed directly)`);
+    setLastNpcInteraction(ctx.playerId, mentionedNpc.npcTemplateId, mentionedTemplate.name, ctx.roomId);
     await generateAndSendNpcReaction(ctx, mentionedNpc, mentionedTemplate, message, true);
     return;
+  }
+
+  // Check if the player has a recent conversation partner in this room
+  // This takes priority over room's last speaker - allows for back-and-forth dialogue
+  const lastInteraction = getLastNpcInteraction(ctx.playerId);
+  if (lastInteraction && lastInteraction.roomId === ctx.roomId) {
+    const conversationPartner = friendlyNpcs.find(n => n.npcTemplateId === lastInteraction.npcId);
+    const partnerTemplate = conversationPartner ? npcTemplates.find(t => t.id === conversationPartner.npcTemplateId) : null;
+    if (conversationPartner && partnerTemplate) {
+      console.log(`[NPC Speech] Continuing conversation with ${partnerTemplate.name} (player's last conversation partner)`);
+      await generateAndSendNpcReaction(ctx, conversationPartner, partnerTemplate, message, true);
+      return;
+    }
   }
 
   // No one was mentioned specifically - check if there's a recent speaker they're replying to
